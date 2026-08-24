@@ -5,8 +5,8 @@ ENV UV_LINK_MODE=copy
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-install-project --no-dev --extra cpu
 COPY src ./src
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --extra cpu
 EXPOSE 8000
-CMD ["uv", "run", "--frozen", "--no-dev", "uvicorn", "ml.serving.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--frozen", "--no-dev", "--extra", "cpu", "uvicorn", "ml.serving.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
