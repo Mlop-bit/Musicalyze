@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^services/ml/
+      - id: ruff-format
+        files: ^services/ml/
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright
+        entry: bash -c 'cd services/ml && uv run pyright'
+        language: system
+        files: ^services/ml/.*\.py$
+        pass_filenames: false
