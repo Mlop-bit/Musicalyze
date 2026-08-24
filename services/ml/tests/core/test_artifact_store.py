@@ -12,6 +12,9 @@ def _settings() -> Settings:
         s3_bucket="dev-bucket",
         s3_access_key="test-access-key",
         s3_secret_key="test-secret-key",
+        kv_account_id="test-account",
+        kv_namespace_id="test-namespace",
+        kv_api_token="test-token",
     )
 
 

@@ -9,3 +9,6 @@ class Settings(BaseSettings):
     s3_bucket: str
     s3_access_key: str
     s3_secret_key: str
+    kv_account_id: str
+    kv_namespace_id: str
+    kv_api_token: str

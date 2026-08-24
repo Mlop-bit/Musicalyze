@@ -698,6 +698,7 @@ dependencies = [
     { name = "boto3" },
     { name = "botocore" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "librosa" },
     { name = "muq" },
     { name = "musicbrainzngs" },
@@ -717,7 +718,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "boto3-stubs", extra = ["s3"] },
-    { name = "httpx" },
     { name = "pre-commit" },
     { name = "pyright" },
     { name = "pytest" },
@@ -729,6 +729,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.35" },
     { name = "botocore", specifier = ">=1.35" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "librosa", specifier = ">=0.10" },
     { name = "muq", specifier = ">=0.1" },
     { name = "musicbrainzngs", specifier = ">=0.7" },
@@ -748,7 +749,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "boto3-stubs", extras = ["s3"], specifier = ">=1.35" },
-    { name = "httpx", specifier = ">=0.27" },
     { name = "pre-commit", specifier = ">=4.0" },
     { name = "pyright", specifier = ">=1.1" },
     { name = "pytest", specifier = ">=8.3" },
