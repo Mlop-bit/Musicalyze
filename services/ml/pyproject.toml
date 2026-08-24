@@ -53,6 +53,11 @@ root = "tests/serving/api"
 reportUnknownMemberType = "none"
 reportUnknownVariableType = "none"
 
+[[tool.pyright.executionEnvironments]]
+root = "src/ml/core/muq.py"
+reportMissingTypeStubs = "none"
+reportUnknownMemberType = "none"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
