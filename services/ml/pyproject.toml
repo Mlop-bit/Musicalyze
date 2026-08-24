@@ -58,6 +58,10 @@ root = "src/ml/core/muq.py"
 reportMissingTypeStubs = "none"
 reportUnknownMemberType = "none"
 
+[[tool.pyright.executionEnvironments]]
+root = "tests/training/test_classifier.py"
+reportUnknownMemberType = "none"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
