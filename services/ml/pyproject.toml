@@ -48,6 +48,11 @@ include = ["src", "tests"]
 typeCheckingMode = "strict"
 pythonVersion = "3.13"
 
+[[tool.pyright.executionEnvironments]]
+root = "tests/serving/api"
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
