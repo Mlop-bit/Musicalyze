@@ -1,6 +1,9 @@
 test:
     cd services/ml && uv run --frozen pytest
 
+test-live:
+    cd services/ml && uv run --frozen pytest -m live
+
 lint:
     cd services/ml && uv run --frozen ruff check . && uv run --frozen ruff format --check .
 
@@ -26,6 +29,12 @@ sync-gpu:
 
 docker-build:
     docker build -t musicalyze-ml services/ml
+
+migrate:
+    cd services/ml && uv run alembic upgrade head
+
+migration message:
+    cd services/ml && uv run alembic revision --autogenerate -m "{{message}}"
 
 install-hooks:
     cd services/ml && uv run pre-commit install
