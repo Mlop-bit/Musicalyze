@@ -15,6 +15,11 @@ def _settings() -> Settings:
         kv_account_id="test-account",
         kv_namespace_id="test-namespace",
         kv_api_token="test-token",
+        db_host="localhost",
+        db_port=5432,
+        db_user="musicalyze",
+        db_password="musicalyze",
+        db_name="musicalyze",
     )
 
 

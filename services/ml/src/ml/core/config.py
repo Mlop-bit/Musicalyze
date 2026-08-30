@@ -12,3 +12,15 @@ class Settings(BaseSettings):
     kv_account_id: str
     kv_namespace_id: str
     kv_api_token: str
+    db_host: str
+    db_port: int
+    db_user: str
+    db_password: str
+    db_name: str
+
+    @property
+    def database_url(self) -> str:
+        return (
+            f"postgresql+psycopg://{self.db_user}:{self.db_password}"
+            f"@{self.db_host}:{self.db_port}/{self.db_name}"
+        )
