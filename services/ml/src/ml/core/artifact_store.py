@@ -10,10 +10,10 @@ from ml.core.config import Settings
 def _client(settings: Settings) -> S3Client:
     return boto3.client(
         "s3",
-        endpoint_url=settings.s3_endpoint_url,
+        endpoint_url=str(settings.s3_endpoint_url),
         region_name=settings.s3_region,
         aws_access_key_id=settings.s3_access_key,
-        aws_secret_access_key=settings.s3_secret_key,
+        aws_secret_access_key=settings.s3_secret_key.get_secret_value(),
         config=Config(s3={"addressing_style": "path"}),
     )
 

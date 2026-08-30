@@ -5,20 +5,22 @@ from ml.core.config import Settings
 
 
 def _settings() -> Settings:
-    return Settings(
-        s3_endpoint_url="https://s3.example.com",
-        s3_region="garage",
-        s3_bucket="dev-bucket",
-        s3_access_key="test-access-key",
-        s3_secret_key="test-secret-key",
-        kv_account_id="test-account",
-        kv_namespace_id="test-namespace",
-        kv_api_token="test-token",
-        db_host="localhost",
-        db_port=5432,
-        db_user="musicalyze",
-        db_password="musicalyze",
-        db_name="musicalyze",
+    return Settings.model_validate(
+        {
+            "s3_endpoint_url": "https://s3.example.com",
+            "s3_region": "garage",
+            "s3_bucket": "dev-bucket",
+            "s3_access_key": "test-access-key",
+            "s3_secret_key": "test-secret-key",
+            "kv_account_id": "0" * 32,
+            "kv_namespace_id": "1" * 32,
+            "kv_api_token": "test-token",
+            "db_host": "localhost",
+            "db_port": 5432,
+            "db_user": "musicalyze",
+            "db_password": "musicalyze",
+            "db_name": "musicalyze",
+        }
     )
 
 
@@ -32,8 +34,8 @@ def test_get_cached_value_returns_body_when_key_exists() -> None:
 
     assert result == "cached value"
     mock_get.assert_called_once_with(
-        "https://api.cloudflare.com/client/v4/accounts/test-account"
-        "/storage/kv/namespaces/test-namespace/values/some-key",
+        f"https://api.cloudflare.com/client/v4/accounts/{'0' * 32}"
+        f"/storage/kv/namespaces/{'1' * 32}/values/some-key",
         headers={"Authorization": "Bearer test-token"},
     )
 
@@ -56,8 +58,8 @@ def test_set_cached_value_puts_value_with_correct_url_and_auth() -> None:
         set_cached_value("some-key", "some-value", _settings())
 
     mock_put.assert_called_once_with(
-        "https://api.cloudflare.com/client/v4/accounts/test-account"
-        "/storage/kv/namespaces/test-namespace/values/some-key",
+        f"https://api.cloudflare.com/client/v4/accounts/{'0' * 32}"
+        f"/storage/kv/namespaces/{'1' * 32}/values/some-key",
         headers={"Authorization": "Bearer test-token"},
         content="some-value",
     )

@@ -13,7 +13,7 @@ def _values_url(settings: Settings, key: str) -> str:
 def get_cached_value(key: str, settings: Settings) -> str | None:
     response = httpx.get(
         _values_url(settings, key),
-        headers={"Authorization": f"Bearer {settings.kv_api_token}"},
+        headers={"Authorization": f"Bearer {settings.kv_api_token.get_secret_value()}"},
     )
     if response.status_code == 404:
         return None
@@ -24,7 +24,7 @@ def get_cached_value(key: str, settings: Settings) -> str | None:
 def set_cached_value(key: str, value: str, settings: Settings) -> None:
     response = httpx.put(
         _values_url(settings, key),
-        headers={"Authorization": f"Bearer {settings.kv_api_token}"},
+        headers={"Authorization": f"Bearer {settings.kv_api_token.get_secret_value()}"},
         content=value,
     )
     response.raise_for_status()
