@@ -1,0 +1,112 @@
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+from ml.core.config import Settings
+from ml.serving.feature_store.resolution import resolve_track
+
+
+def _settings() -> Settings:
+    return Settings.model_validate(
+        {
+            "s3_endpoint_url": "https://s3.example.com",
+            "s3_region": "garage",
+            "s3_bucket": "dev-bucket",
+            "s3_access_key": "test-access-key",
+            "s3_secret_key": "test-secret-key",
+            "kv_account_id": "0" * 32,
+            "kv_namespace_id": "1" * 32,
+            "kv_api_token": "test-token",
+            "db_host": "localhost",
+            "db_port": 5432,
+            "db_user": "musicalyze",
+            "db_password": "musicalyze",
+            "db_name": "musicalyze",
+            "acousticbrainz_extract_dir": Path("extracted"),
+        }
+    )
+
+
+def test_resolve_track_saves_embedding_when_a_preview_is_found() -> None:
+    fake_session = MagicMock()
+    deezer_track = {"preview_url": "https://example.com/preview.mp3"}
+
+    with (
+        patch(
+            "ml.serving.feature_store.resolution.search_deezer_track", return_value=deezer_track
+        ) as mock_search,
+        patch(
+            "ml.serving.feature_store.resolution.save_track_embedding_from_preview"
+        ) as mock_save_embedding,
+        patch(
+            "ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"
+        ) as mock_save_enrichment,
+    ):
+        resolve_track(fake_session, _settings(), "track-1", isrc="isrc-1", artist="A", title="T")
+
+    mock_search.assert_called_once_with(_settings(), isrc="isrc-1", artist="A", track="T")
+    mock_save_embedding.assert_called_once_with(
+        fake_session, "track-1", "https://example.com/preview.mp3"
+    )
+    mock_save_enrichment.assert_not_called()
+
+
+def test_resolve_track_skips_embedding_when_no_preview_is_found() -> None:
+    fake_session = MagicMock()
+
+    with (
+        patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=None),
+        patch(
+            "ml.serving.feature_store.resolution.save_track_embedding_from_preview"
+        ) as mock_save_embedding,
+    ):
+        resolve_track(fake_session, _settings(), "track-1")
+
+    mock_save_embedding.assert_not_called()
+
+
+def test_resolve_track_skips_embedding_when_preview_url_is_null() -> None:
+    fake_session = MagicMock()
+
+    with (
+        patch(
+            "ml.serving.feature_store.resolution.search_deezer_track",
+            return_value={"preview_url": None},
+        ),
+        patch(
+            "ml.serving.feature_store.resolution.save_track_embedding_from_preview"
+        ) as mock_save_embedding,
+    ):
+        resolve_track(fake_session, _settings(), "track-1")
+
+    mock_save_embedding.assert_not_called()
+
+
+def test_resolve_track_saves_acousticbrainz_enrichment_when_mbid_is_known() -> None:
+    fake_session = MagicMock()
+    settings = _settings()
+
+    with (
+        patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=None),
+        patch(
+            "ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"
+        ) as mock_save_enrichment,
+    ):
+        resolve_track(fake_session, settings, "track-1", musicbrainz_id="mbid-1")
+
+    mock_save_enrichment.assert_called_once_with(
+        fake_session, "track-1", "mbid-1", settings.acousticbrainz_extract_dir
+    )
+
+
+def test_resolve_track_skips_acousticbrainz_enrichment_without_a_mbid() -> None:
+    fake_session = MagicMock()
+
+    with (
+        patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=None),
+        patch(
+            "ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"
+        ) as mock_save_enrichment,
+    ):
+        resolve_track(fake_session, _settings(), "track-1")
+
+    mock_save_enrichment.assert_not_called()
