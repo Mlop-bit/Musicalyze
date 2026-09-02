@@ -47,29 +47,29 @@ def format_response(data: dict, method: str, headers: dict):
         "isrc": data.get("isrc"),
         "title": data.get("title"),
         "artist": data.get("artist", {}).get("name"),
-        "bpm": data.get("bpm"), # si 0, alors pas donné lors de la publication ou un truc comme ça
+        "bpm": data.get("bpm"), # if 0, then not specified at the time of publication or something like that
         "duration_sec": data.get("duration"),
         "release_date": data.get("release_date"),
-        "popularity_rank": data.get("rank"), #ranking de popularité deezer 1m est le max, et est la meilleur note possible
+        "popularity_rank": data.get("rank"), # The Deezer popularity ranking of 1m is the highest possible, and is the best rating available
         "explicit_lyrics": data.get("explicit_lyrics"),
-        "gain_db": data.get("gain"), #gain en DB pour la normalisation audio entre les sons je crois
+        "gain_db": data.get("gain"), # DB gain for audio normalisation between sounds, I think
         "genres": genres,
-        "preview_url": data.get("preview") #marche presque pas malheuresement
+        "preview_url": data.get("preview") # Unfortunately, it doesn’t work very well.
     }
 
 
 # --- TESTS ---
 
-test_1 = search_deezer_track(track="Get Lucky")             #le premier titre trouvé correspondant à ce titre, mais ce n'est pas forcément celui que l'on veut
-test_2 = search_deezer_track(artist="Daft Punk")             #daft punk est dans les crédits de ce titre après vérification, donc pas d'erreurs
-test_3 = search_deezer_track(query="Daft Punk Get Lucky")   #bonne précision de recherche /!\ATTENTION/!\ l'odre pourrait peut-être influer, essayons de garder l'artiste en premier
-test_4 = search_deezer_track(isrc="GB28K1100036")           # meilleure recherche possible, par ISRC donc
+test_1 = search_deezer_track(track="Get Lucky")             # The first title found that matches this title, but it isn’t necessarily the one you want
+test_2 = search_deezer_track(artist="Daft Punk")             # Daft Punk are listed in the credits for this track, as I’ve checked, so there are no errors
+test_3 = search_deezer_track(query="Daft Punk Get Lucky")   # Good search accuracy /!\WARNING/!\ The order might have an impact, so let’s try to put the artist first
+test_4 = search_deezer_track(isrc="GB28K1100036")           # The best possible search, using the ISRC, therefore
 
 for i, result in enumerate([test_1, test_2, test_3, test_4], 1):
     if result:
         print(f"\n--- Test {i} Success ---")
         for key, value in result.items():
-            print(f"{key:<20}: {value}") # {key:<20} est juste là pour l'allignement d'affichage en fonction de la key
+            print(f"{key:<20}: {value}") # {key:<20} is just there to align the display according to the key
         print("\n")
     else:
         print(f"\n--- Test {i} Failed ---")
