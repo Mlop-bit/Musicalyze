@@ -24,7 +24,7 @@ def save_enrichment(
     musicbrainz_id: str | None,
     bpm: float | None,
     key: str | None,
-    mood_label: str,
+    mood_label: str | None,
     source: str,
 ) -> None:
     statement = (
