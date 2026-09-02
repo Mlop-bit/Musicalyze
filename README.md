@@ -5,9 +5,9 @@
 
 ## Background
 The ubiquity of streaming music has led users to accumulate extensive, unstructured track libraries. These collections typically lack stylistic coherence and optimal sequencing, complicating both playlist curation and targeted music discovery. This challenge is currently exacerbated by API restrictions: as of November 2024, Spotify deprecated the endpoints providing acoustic features (e.g., tempo, energy, key) and algorithmic recommendations for new applications. Consequently, external applications can no longer rely on native platform metadata for audio analysis.
+
 This project proposes a Spotify-integrated web application that independently reconstructs this acoustic metadata to circumvent current API limitations. The architecture combines an open-source pretrained music model (MuQ) with public datasets (AcousticBrainz, MTG-Jamendo), Leveraging this consolidated data, the application automatically segments playlists into mood-coherent subsets, computes optimal track sequences, and generates targeted recommendations. These functions are driven by a custom-trained mood and genre classifier, establishing a self-sufficient Music Information Retrieval (MIR) pipeline independent of proprietary third-party services.
-Specifications
-Has to run on any recent browser. 
+
 
 ## Objectives
 - Build an independent data pipeline to reconstruct missing acoustic metadata using a combination of public music datasets and a pretrained model
