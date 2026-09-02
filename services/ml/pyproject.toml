@@ -108,6 +108,11 @@ reportUnknownMemberType = "none"
 root = "src/ml/serving/acousticbrainz/download_scripts/download_acousticbrainz.py"
 reportCallIssue = "none"
 
+[[tool.pyright.executionEnvironments]]
+root = "src/ml/serving/feature_store/embedding.py"
+reportUnknownMemberType = "none"
+reportUnknownArgumentType = "none"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
