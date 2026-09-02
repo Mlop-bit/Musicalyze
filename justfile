@@ -30,6 +30,9 @@ sync-gpu:
 docker-build:
     docker build -t musicalyze-ml services/ml
 
+download-acousticbrainz:
+    cd services/ml && uv run python -m ml.serving.acousticbrainz.download_scripts.download_acousticbrainz
+
 migrate:
     cd services/ml && uv run alembic upgrade head
 

@@ -1,141 +1,107 @@
-from pathlib import Path
-from urllib.parse import urljoin
-from urllib.request import Request, urlopen
 import re
-import os
-import logging
-import argparse
 import tarfile
-import concurrent.futures
+from collections.abc import Iterable
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from pathlib import Path
+
+import httpx
 import zstandard as zstd
 
-download_dir = Path("acousticbrainz-dumps")
-download_dir.mkdir(exist_ok=True)
+from ml.core.config import Settings
+from ml.serving.acousticbrainz.constants import DUMP_VERSION
 
-highlevel_url = (
-    "https://data.metabrainz.org/pub/musicbrainz/acousticbrainz/"
-    "dumps/acousticbrainz-highlevel-json-20220623/"
+HIGHLEVEL_INDEX_URL = (
+    "https://data.metabrainz.org/pub/musicbrainz/acousticbrainz/dumps/"
+    f"acousticbrainz-highlevel-json-{DUMP_VERSION}/"
 )
-
-files_to_download = [
+LOWLEVEL_ARCHIVE_URLS = [
     "https://data.metabrainz.org/pub/musicbrainz/acousticbrainz/dumps/"
-    "acousticbrainz-lowlevel-features-20220623/"
-    "acousticbrainz-lowlevel-features-20220623-rhythm.tar.zst",
-
+    f"acousticbrainz-lowlevel-features-{DUMP_VERSION}/"
+    f"acousticbrainz-lowlevel-features-{DUMP_VERSION}-rhythm.tar.zst",
     "https://data.metabrainz.org/pub/musicbrainz/acousticbrainz/dumps/"
-    "acousticbrainz-lowlevel-features-20220623/"
-    "acousticbrainz-lowlevel-features-20220623-tonal.tar.zst",
+    f"acousticbrainz-lowlevel-features-{DUMP_VERSION}/"
+    f"acousticbrainz-lowlevel-features-{DUMP_VERSION}-tonal.tar.zst",
 ]
+ARCHIVE_SUFFIXES = (".tar.zst", ".tar.bz2")
+CHUNK_SIZE = 1024 * 1024
+HTTP_PARTIAL_CONTENT = 206
+HTTP_RANGE_NOT_SATISFIABLE = 416
+
+
+def list_highlevel_archive_urls(index_url: str = HIGHLEVEL_INDEX_URL) -> list[str]:
+    response = httpx.get(index_url)
+    response.raise_for_status()
+    hrefs = re.findall(r'href=["\']([^"\']+)["\']', response.text)
+    return [
+        str(httpx.URL(index_url).join(href)) for href in hrefs if href.endswith(ARCHIVE_SUFFIXES)
+    ]
 
 
 def download_file(url: str, destination: Path) -> None:
-    # For Resume-Function if local file is wrongly labeled as not completely downloaded
-    # 1. Check the size of the local File
     existing_size = destination.stat().st_size if destination.exists() else 0
+    headers = {"Range": f"bytes={existing_size}-"} if existing_size else {}
 
-    # 2. Get file size from server
-    try:
-        req_head = Request(url, method="HEAD")
-        with urlopen(req_head) as resp:
-            server_size = int(resp.headers.get("Content-Length", 0))
-    except Exception:
-        server_size = 0
+    with httpx.stream("GET", url, headers=headers, follow_redirects=True) as response:
+        if response.status_code == HTTP_RANGE_NOT_SATISFIABLE:
+            return
 
-    # 3. Compare sizes
-    if server_size and existing_size >= server_size:
-        print(f"Skipping {destination.name} (already fully downloaded).")
-        return
+        resuming = bool(existing_size) and response.status_code == HTTP_PARTIAL_CONTENT
+        response.raise_for_status()
 
-    print(f"Downloading {destination.name}...")
-
-    headers = {}
-    if existing_size:
-        headers["Range"] = f"bytes={existing_size}-"
-
-    request = Request(url, headers=headers)
-
-    with urlopen(request) as response:
-        status = response.status
-
-        # If the server does not support resuming, start over.
-        if existing_size and status != 206:
-            existing_size = 0
-
-        mode = "ab" if existing_size else "wb"
-
-        with destination.open(mode) as output:
-            while True:
-                chunk = response.read(1024 * 1024)
-                if not chunk:
-                    break
+        with destination.open("ab" if resuming else "wb") as output:
+            for chunk in response.iter_bytes(CHUNK_SIZE):
                 output.write(chunk)
 
-    print(f"Finished: {destination}")
+
+def marker_file(archive_path: Path, destination_dir: Path) -> Path:
+    return destination_dir / f".{archive_path.name}_extracted"
 
 
-# Read the high-level dump directory listing
-with urlopen(highlevel_url) as response:
-    html = response.read().decode("utf-8", errors="replace")
-
-links = re.findall(r'href=["\']([^"\']+)["\']', html)
-
-for link in links:
-    if link in ("../", "./") or link.startswith("?"):
-        continue
-
-    file_url = urljoin(highlevel_url, link)
-    filename = Path(link).name
-
-    if filename and filename != "index.html":
-        files_to_download.append(file_url)
+def is_extracted(archive_path: Path, destination_dir: Path) -> bool:
+    return marker_file(archive_path, destination_dir).exists()
 
 
-for url in files_to_download:
-    filename = Path(url.split("?")[0]).name
-    destination = download_dir / filename
-    download_file(url, destination)
+def extract_archive(archive_path: Path, destination_dir: Path) -> None:
+    if archive_path.name.endswith(".tar.zst"):
+        decompressor = zstd.ZstdDecompressor()
+        with (
+            archive_path.open("rb") as compressed,
+            decompressor.stream_reader(compressed) as reader,
+            tarfile.open(fileobj=reader, mode="r|") as tar,
+        ):
+            tar.extractall(path=destination_dir, filter="data")
+    elif archive_path.name.endswith(".tar.bz2"):
+        with tarfile.open(archive_path, mode="r:bz2") as tar:
+            tar.extractall(path=destination_dir, filter="data")
+    else:
+        raise ValueError(f"unsupported archive format: {archive_path.name}")
 
-print("All download_scripts completed.")
+    marker_file(archive_path, destination_dir).touch()
 
 
-extract_dir = Path("acousticbrainz-extracted")
-extract_dir.mkdir(exist_ok=True)
+def download_dumps(dump_dir: Path) -> list[Path]:
+    dump_dir.mkdir(parents=True, exist_ok=True)
+    urls = [*LOWLEVEL_ARCHIVE_URLS, *list_highlevel_archive_urls()]
+    destinations = [dump_dir / url.rsplit("/", maxsplit=1)[-1] for url in urls]
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        list(executor.map(download_file, urls, destinations))
+
+    return destinations
 
 
-def extract_archive(archive_path: Path) -> None:
-    # Create a unique marker folder or flag for this specific archive
-    marker_file = extract_dir / f".{archive_path.name}_extracted"
+def extract_dumps(archive_paths: Iterable[Path], extract_dir: Path) -> None:
+    extract_dir.mkdir(parents=True, exist_ok=True)
+    pending = [path for path in archive_paths if not is_extracted(path, extract_dir)]
 
-    # If the marker exists, skip it entirely!
-    if marker_file.exists():
-        print(f"Skipping extraction for {archive_path.name} (already done).")
-        return
+    with ProcessPoolExecutor() as executor:
+        list(executor.map(extract_archive, pending, [extract_dir] * len(pending)))
 
-    print(f"Extracting {archive_path.name}...")
-    try:
-        if archive_path.name.endswith('.tar.zst'):
-            dctx = zstd.ZstdDecompressor()
-            with open(archive_path, 'rb') as ifh:
-                with dctx.stream_reader(ifh) as reader:
-                    with tarfile.open(fileobj=reader, mode='r|') as tar:
-                        tar.extractall(path=extract_dir, filter='data')
 
-        elif archive_path.name.endswith('.tar.bz2'):
-            with tarfile.open(archive_path, mode='r:bz2') as tar:
-                tar.extractall(path=extract_dir, filter='data')
+def main(settings: Settings) -> None:
+    archive_paths = download_dumps(settings.acousticbrainz_dump_dir)
+    extract_dumps(archive_paths, settings.acousticbrainz_extract_dir)
 
-        # Drop a tiny marker file so we know this archive finished successfully
-        marker_file.touch()
-        print(f"Finished extracting: {archive_path.name}")
 
-    except Exception as e:
-        print(f"Error extracting {archive_path.name}: {e}")
-
-archives = list(download_dir.glob("*.tar.*"))
-
-if archives:
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        executor.map(extract_archive, archives)
-    print("All archives extracted successfully.")
-else:
-    print("No archives found to extract.")
+if __name__ == "__main__":
+    main(Settings())

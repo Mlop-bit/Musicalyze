@@ -1,82 +1,48 @@
 import json
 from pathlib import Path
+from typing import Any, TypedDict
+
+from ml.serving.acousticbrainz.constants import DUMP_VERSION
+
+HIGHLEVEL_DIR_NAME = f"acousticbrainz-highlevel-json-{DUMP_VERSION}"
+LOWLEVEL_DIR_NAME = f"acousticbrainz-lowlevel-features-{DUMP_VERSION}"
 
 
-def get_acousticbrainz_data(mbid: str, base_extract_dir: Path) -> dict:
-    song_data = {
-        "highlevel": None,
-        "lowlevel": None
-    }
+class AcousticBrainzData(TypedDict):
+    highlevel: dict[str, Any] | None
+    lowlevel: dict[str, Any] | None
 
-    # only -0 version
-    target_filename = f"{mbid}-0.json"
 
-    # Define exact file paths for both High-Level and Low-Level
-    highlevel_file = (
-            base_extract_dir
-            / "acousticbrainz-highlevel-json-20220623"
-            / "highlevel"
-            / mbid[:2]
-            / mbid[2]
-            / target_filename
+class AcousticBrainzDumpNotExtractedError(Exception):
+    pass
+
+
+def _submission_file(dataset_dir: Path, mbid: str) -> Path | None:
+    shard_dir = dataset_dir / mbid[:2] / mbid[2]
+    if not shard_dir.is_dir():
+        return None
+    matches = sorted(shard_dir.glob(f"{mbid}-*.json"))
+    return matches[0] if matches else None
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def get_acousticbrainz_data(mbid: str, extract_dir: Path) -> AcousticBrainzData:
+    highlevel_dir = extract_dir / HIGHLEVEL_DIR_NAME / "highlevel"
+    lowlevel_dir = extract_dir / LOWLEVEL_DIR_NAME / "lowlevel"
+
+    if not highlevel_dir.is_dir() and not lowlevel_dir.is_dir():
+        raise AcousticBrainzDumpNotExtractedError(
+            f"neither {highlevel_dir} nor {lowlevel_dir} exist — "
+            "run download_acousticbrainz.py before looking up tracks"
+        )
+
+    highlevel_file = _submission_file(highlevel_dir, mbid) if highlevel_dir.is_dir() else None
+    lowlevel_file = _submission_file(lowlevel_dir, mbid) if lowlevel_dir.is_dir() else None
+
+    return AcousticBrainzData(
+        highlevel=_load_json(highlevel_file) if highlevel_file else None,
+        lowlevel=_load_json(lowlevel_file) if lowlevel_file else None,
     )
-
-    lowlevel_file = (
-            base_extract_dir
-            / "acousticbrainz-lowlevel-features-20220623"
-            / "lowlevel"
-            / mbid[:2]
-            / mbid[2]
-            / target_filename
-    )
-
-    # Load High-Level data
-    if highlevel_file.exists():
-        try:
-            with open(highlevel_file, "r", encoding="utf-8") as f:
-                song_data["highlevel"] = json.load(f)
-        except Exception as e:
-            print(f"Error reading high-level file {highlevel_file.name}: {e}")
-    else:
-        print(f"High-level file not found: {highlevel_file}")
-
-    # Load Low-Level data
-    if lowlevel_file.exists():
-        try:
-            with open(lowlevel_file, "r", encoding="utf-8") as f:
-                song_data["lowlevel"] = json.load(f)
-        except Exception as e:
-            print(f"Error reading low-level file {lowlevel_file.name}: {e}")
-    else:
-        print(f"Low-level file not found: {lowlevel_file}")
-
-    return song_data
-
-
-# --- Example Usage ---
-if __name__ == "__main__":
-    extract_dir = Path(__file__).parent / "download_scripts" / "acousticbrainz-extracted"
-    test_mbid = "1a0a0ac2-b294-4794-b275-1b064b31b3d5"
-
-    song_data = get_acousticbrainz_data(test_mbid, extract_dir)
-
-    if song_data["highlevel"]:
-        print("--- HIGH-LEVEL DATA ---")
-
-        file_data = song_data["highlevel"]
-
-        metadata = file_data.get("metadata", {})
-        tags = metadata.get("tags", {})
-
-        title = tags.get("title", ["Unknown"])[0]
-        artist = tags.get("artist", ["Unknown"])[0]
-
-        features = file_data.get("highlevel", {})
-
-        genre_data = features.get("genre_dortmund", {})
-        genre = genre_data.get("value", "Unknown")
-
-        print("\n--- QUICK SUMMARY ---")
-        print(f"Title: {title}")
-        print(f"Artist: {artist}")
-        print(f"Predicted Genre: {genre}")

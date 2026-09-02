@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 
 from pydantic import Field, HttpUrl, SecretStr
@@ -24,6 +25,8 @@ class Settings(BaseSettings):
     db_user: NonEmptyStr
     db_password: SecretStr
     db_name: NonEmptyStr
+    acousticbrainz_dump_dir: Path = Path("acousticbrainz-dumps")
+    acousticbrainz_extract_dir: Path = Path("acousticbrainz-extracted")
 
     @property
     def database_url(self) -> str:
