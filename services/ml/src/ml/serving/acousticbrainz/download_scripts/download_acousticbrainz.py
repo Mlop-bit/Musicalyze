@@ -2,6 +2,12 @@ from pathlib import Path
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 import re
+import os
+import logging
+import argparse
+import tarfile
+import concurrent.futures
+import zstandard as zstd
 
 download_dir = Path("acousticbrainz-dumps")
 download_dir.mkdir(exist_ok=True)
@@ -23,9 +29,24 @@ files_to_download = [
 
 
 def download_file(url: str, destination: Path) -> None:
-    print(f"Downloading {destination.name}...")
-
+    # For Resume-Function if local file is wrongly labeled as not completely downloaded
+    # 1. Check the size of the local File
     existing_size = destination.stat().st_size if destination.exists() else 0
+
+    # 2. Get file size from server
+    try:
+        req_head = Request(url, method="HEAD")
+        with urlopen(req_head) as resp:
+            server_size = int(resp.headers.get("Content-Length", 0))
+    except Exception:
+        server_size = 0
+
+    # 3. Compare sizes
+    if server_size and existing_size >= server_size:
+        print(f"Skipping {destination.name} (already fully downloaded).")
+        return
+
+    print(f"Downloading {destination.name}...")
 
     headers = {}
     if existing_size:
@@ -75,3 +96,46 @@ for url in files_to_download:
     download_file(url, destination)
 
 print("All download_scripts completed.")
+
+
+extract_dir = Path("acousticbrainz-extracted")
+extract_dir.mkdir(exist_ok=True)
+
+
+def extract_archive(archive_path: Path) -> None:
+    # Create a unique marker folder or flag for this specific archive
+    marker_file = extract_dir / f".{archive_path.name}_extracted"
+
+    # If the marker exists, skip it entirely!
+    if marker_file.exists():
+        print(f"Skipping extraction for {archive_path.name} (already done).")
+        return
+
+    print(f"Extracting {archive_path.name}...")
+    try:
+        if archive_path.name.endswith('.tar.zst'):
+            dctx = zstd.ZstdDecompressor()
+            with open(archive_path, 'rb') as ifh:
+                with dctx.stream_reader(ifh) as reader:
+                    with tarfile.open(fileobj=reader, mode='r|') as tar:
+                        tar.extractall(path=extract_dir, filter='data')
+
+        elif archive_path.name.endswith('.tar.bz2'):
+            with tarfile.open(archive_path, mode='r:bz2') as tar:
+                tar.extractall(path=extract_dir, filter='data')
+
+        # Drop a tiny marker file so we know this archive finished successfully
+        marker_file.touch()
+        print(f"Finished extracting: {archive_path.name}")
+
+    except Exception as e:
+        print(f"Error extracting {archive_path.name}: {e}")
+
+archives = list(download_dir.glob("*.tar.*"))
+
+if archives:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        executor.map(extract_archive, archives)
+    print("All archives extracted successfully.")
+else:
+    print("No archives found to extract.")
