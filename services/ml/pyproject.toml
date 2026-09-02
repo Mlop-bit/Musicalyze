@@ -104,6 +104,11 @@ root = "src/ml/core/artifact_store.py"
 reportUnknownMemberType = "none"
 
 [[tool.pyright.executionEnvironments]]
+root = "src/ml/serving/preview/audio.py"
+reportMissingTypeStubs = "none"
+reportUnknownMemberType = "none"
+
+[[tool.pyright.executionEnvironments]]
 root = "src/ml/serving/acousticbrainz/download_scripts/download_acousticbrainz.py"
 reportCallIssue = "none"
 
