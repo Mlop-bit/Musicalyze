@@ -1,6 +1,10 @@
+import json
 from typing import Any, TypedDict
 
 import httpx
+
+from ml.core.cache import get_cached_value, set_cached_value
+from ml.core.config import Settings
 
 BASE_URL = "https://api.deezer.com"
 TIMEOUT = 10.0
@@ -30,10 +34,27 @@ class DeezerTrack(TypedDict):
 
 
 def search_deezer_track(
+    settings: Settings,
     isrc: str | None = None,
     artist: str | None = None,
     track: str | None = None,
     query: str | None = None,
+) -> DeezerTrack | None:
+    cache_key = f"deezer-search:{isrc or ''}|{artist or ''}|{track or ''}|{query or ''}"
+    cached = get_cached_value(cache_key, settings)
+    if cached is not None:
+        return json.loads(cached)
+
+    result = _search_deezer_track(isrc, artist, track, query)
+    set_cached_value(cache_key, json.dumps(result), settings)
+    return result
+
+
+def _search_deezer_track(
+    isrc: str | None,
+    artist: str | None,
+    track: str | None,
+    query: str | None,
 ) -> DeezerTrack | None:
     if isrc:
         response = httpx.get(f"{BASE_URL}/track/isrc:{isrc}", headers=HEADERS, timeout=TIMEOUT)
