@@ -18,10 +18,13 @@ from ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3 impo
     archive_stem,
     build_archive_plan,
     done_marker_key,
+    download_with_resume,
     is_archive_done,
+    main,
     mark_archive_done,
     process_archive,
     process_archive_with_retries,
+    process_one_archive,
 )
 from ml.serving.acousticbrainz.s3_shards import unpack_shard
 
@@ -122,8 +125,9 @@ def _make_source_archive_bytes(entries: list[tuple[str, bytes]]) -> bytes:
 
 
 class _FakeStreamResponse:
-    def __init__(self, body: bytes) -> None:
+    def __init__(self, body: bytes, status_code: int = 200) -> None:
         self._body = body
+        self.status_code = status_code
         self.headers = {"content-length": str(len(body))}
 
     def raise_for_status(self) -> None:
@@ -178,13 +182,104 @@ def test_process_archive_uploads_one_chunk_per_shard_and_cleans_up(tmp_path: Pat
         "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
         return_value=_FakeStreamContext(_FakeStreamResponse(archive_bytes)),
     ):
-        process_archive(target, tmp_path / "work", client, "dev-bucket")
+        process_archive(target, tmp_path / "work", client, "dev-bucket", len(archive_bytes))
 
     assert client.upload_file.call_count == 1
     assert not uploaded_paths[0].exists()
     assert not (tmp_path / "work" / "acousticbrainz-highlevel-json-20220623-0").exists()
+    assert not (tmp_path / "work" / "acousticbrainz-highlevel-json-20220623-0.download").exists()
     restored = tmp_path / "restored" / "1" / "aaa-0.json"
     assert json.loads(restored.read_text(encoding="utf-8")) == payload
+
+
+def test_download_with_resume_fetches_full_file_when_nothing_local(tmp_path: Path) -> None:
+    body = b"a" * 100
+    dest = tmp_path / "archive.download"
+    progress: list[tuple[int, int]] = []
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
+        return_value=_FakeStreamContext(_FakeStreamResponse(body)),
+    ) as mock_stream:
+        download_with_resume(
+            "https://example.com/x",
+            dest,
+            len(body),
+            lambda downloaded, expected: progress.append((downloaded, expected)),
+        )
+
+    mock_stream.assert_called_once_with(
+        "GET", "https://example.com/x", headers={}, follow_redirects=True, timeout=60.0
+    )
+    assert dest.read_bytes() == body
+    assert progress[-1] == (100, 100)
+
+
+def test_download_with_resume_requests_a_range_when_a_partial_file_exists(tmp_path: Path) -> None:
+    dest = tmp_path / "archive.download"
+    dest.write_bytes(b"a" * 40)
+    remainder = b"b" * 60
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
+        return_value=_FakeStreamContext(_FakeStreamResponse(remainder, status_code=206)),
+    ) as mock_stream:
+        download_with_resume("https://example.com/x", dest, 100)
+
+    mock_stream.assert_called_once_with(
+        "GET",
+        "https://example.com/x",
+        headers={"Range": "bytes=40-"},
+        follow_redirects=True,
+        timeout=60.0,
+    )
+    assert dest.read_bytes() == b"a" * 40 + remainder
+
+
+def test_download_with_resume_restarts_when_server_ignores_the_range_header(tmp_path: Path) -> None:
+    dest = tmp_path / "archive.download"
+    dest.write_bytes(b"stale-data")
+    full_body = b"c" * 100
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
+        return_value=_FakeStreamContext(_FakeStreamResponse(full_body, status_code=200)),
+    ):
+        download_with_resume("https://example.com/x", dest, len(full_body))
+
+    assert dest.read_bytes() == full_body
+
+
+def test_download_with_resume_skips_the_network_when_already_complete(tmp_path: Path) -> None:
+    dest = tmp_path / "archive.download"
+    dest.write_bytes(b"a" * 100)
+    progress: list[tuple[int, int]] = []
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream"
+    ) as mock_stream:
+        download_with_resume(
+            "https://example.com/x",
+            dest,
+            100,
+            lambda downloaded, expected: progress.append((downloaded, expected)),
+        )
+
+    mock_stream.assert_not_called()
+    assert progress == [(100, 100)]
+
+
+def test_download_with_resume_raises_when_the_final_size_does_not_match(tmp_path: Path) -> None:
+    dest = tmp_path / "archive.download"
+
+    with (
+        patch(
+            "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
+            return_value=_FakeStreamContext(_FakeStreamResponse(b"too-short")),
+        ),
+        pytest.raises(OSError, match="incomplete download"),
+    ):
+        download_with_resume("https://example.com/x", dest, 1000)
 
 
 def test_process_archive_with_retries_retries_transient_failures_then_succeeds() -> None:
@@ -206,6 +301,7 @@ def test_process_archive_with_retries_retries_transient_failures_then_succeeds()
             Path("/tmp/does-not-matter"),
             MagicMock(),
             "bucket",
+            1000,
             attempts=3,
             sleep=sleeps.append,
         )
@@ -227,11 +323,131 @@ def test_process_archive_with_retries_gives_up_after_max_attempts() -> None:
             Path("/tmp/does-not-matter"),
             MagicMock(),
             "bucket",
+            1000,
             attempts=2,
             sleep=lambda _seconds: None,
         )
 
     assert succeeded is False
+
+
+def test_process_archive_with_retries_caps_the_backoff_delay() -> None:
+    target = ArchiveTarget(url="https://example.com/x-0.tar.zst", dataset_dir_name="d", level="l")
+    sleeps: list[float] = []
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.process_archive",
+        side_effect=TimeoutError("connection reset"),
+    ):
+        succeeded = process_archive_with_retries(
+            target,
+            Path("/tmp/does-not-matter"),
+            MagicMock(),
+            "bucket",
+            1000,
+            attempts=8,
+            sleep=sleeps.append,
+        )
+
+    assert succeeded is False
+    assert sleeps == [2, 4, 8, 16, 32, 60, 60]
+
+
+def test_process_one_archive_skips_when_already_marked_done() -> None:
+    client = MagicMock()
+    client.head_object.return_value = {}
+    reporter = MagicMock()
+    target = ArchiveTarget(url="https://example.com/x-0.tar.zst", dataset_dir_name="d", level="l")
+
+    process_one_archive(
+        1, target, Path("/tmp/does-not-matter"), client, "bucket", 1000, 1024, reporter
+    )
+
+    reporter.skip_archive.assert_called_once_with(1, "x-0", 1000)
+    client.put_object.assert_not_called()
+
+
+def test_process_one_archive_marks_done_and_reports_finish_on_success() -> None:
+    client = MagicMock()
+    client.head_object.side_effect = ClientError(
+        {"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject"
+    )
+    reporter = MagicMock()
+    target = ArchiveTarget(url="https://example.com/x-0.tar.zst", dataset_dir_name="d", level="l")
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.process_archive_with_retries",
+        return_value=True,
+    ):
+        process_one_archive(
+            1, target, Path("/tmp/does-not-matter"), client, "bucket", 1000, 1024, reporter
+        )
+
+    client.put_object.assert_called_once_with(
+        Bucket="bucket", Key="acousticbrainz/.done/x-0", Body=b""
+    )
+    reporter.finish_archive.assert_called_once_with(1000)
+
+
+def test_process_one_archive_does_not_mark_done_when_retries_are_exhausted() -> None:
+    client = MagicMock()
+    client.head_object.side_effect = ClientError(
+        {"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject"
+    )
+    reporter = MagicMock()
+    target = ArchiveTarget(url="https://example.com/x-0.tar.zst", dataset_dir_name="d", level="l")
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.process_archive_with_retries",
+        return_value=False,
+    ):
+        process_one_archive(
+            1, target, Path("/tmp/does-not-matter"), client, "bucket", 1000, 1024, reporter
+        )
+
+    client.put_object.assert_not_called()
+    reporter.finish_archive.assert_not_called()
+
+
+def test_main_processes_every_archive_in_the_plan_concurrently(tmp_path: Path) -> None:
+    plan = [
+        ArchiveTarget(url=f"https://example.com/x-{i}.tar.zst", dataset_dir_name="d", level="l")
+        for i in range(5)
+    ]
+    settings = MagicMock(s3_bucket="bucket")
+    seen_indexes: list[int] = []
+
+    def fake_process_one_archive(
+        index: int, target: ArchiveTarget, *_args: object, **_kwargs: object
+    ) -> None:
+        seen_indexes.append(index)
+
+    with (
+        patch(
+            "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.s3_client",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.build_archive_plan",
+            return_value=plan,
+        ),
+        patch(
+            "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.archive_content_length",
+            return_value=100,
+        ),
+        patch(
+            "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.process_one_archive",
+            side_effect=fake_process_one_archive,
+        ) as mock_process_one,
+    ):
+        main(settings, tmp_path, max_workers=2)
+
+    assert sorted(seen_indexes) == [1, 2, 3, 4, 5]
+    assert mock_process_one.call_count == 5
+    first_call_args = mock_process_one.call_args_list[0][0]
+    assert first_call_args[2] == tmp_path
+    assert first_call_args[4] == "bucket"
+    assert first_call_args[5] == 100
 
 
 def test_progress_reporter_computes_overall_percentage_across_archives(
