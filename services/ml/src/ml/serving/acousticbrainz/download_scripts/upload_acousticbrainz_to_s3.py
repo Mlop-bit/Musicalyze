@@ -1,11 +1,16 @@
+import io
 import shutil
 import tarfile
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from _typeshed import WriteableBuffer
 
 import httpx
 import zstandard as zstd
@@ -36,6 +41,7 @@ DEFAULT_UPLOAD_ATTEMPTS = 6
 DEFAULT_MAX_WORKERS = 3
 MAX_BACKOFF_SECONDS = 60.0
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
+DEFAULT_MAX_RECONNECTS = 5
 
 ProgressCallback = Callable[[int, int], None]
 
@@ -90,39 +96,53 @@ def _backoff_seconds(attempt: int) -> float:
     return min(float(2**attempt), MAX_BACKOFF_SECONDS)
 
 
-def download_with_resume(
+class _IterReader(io.RawIOBase):
+    def __init__(self, chunks: Iterable[bytes]) -> None:
+        self._iterator = iter(chunks)
+        self._buffer = b""
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, b: "WriteableBuffer") -> int:
+        output = memoryview(b)  # type: ignore[arg-type]
+        while len(self._buffer) < len(output):
+            try:
+                self._buffer += next(self._iterator)
+            except StopIteration:
+                break
+        chunk, self._buffer = self._buffer[: len(output)], self._buffer[len(output) :]
+        output[: len(chunk)] = chunk
+        return len(chunk)
+
+
+def stream_archive_bytes(
     url: str,
-    dest_path: Path,
     expected_bytes: int,
     on_progress: ProgressCallback | None = None,
     timeout: float = 60.0,
-) -> None:
-    existing = dest_path.stat().st_size if dest_path.exists() else 0
-    if existing >= expected_bytes:
-        if on_progress is not None:
-            on_progress(expected_bytes, expected_bytes)
-        return
-
-    headers = {"Range": f"bytes={existing}-"} if existing else {}
-    with httpx.stream(
-        "GET", url, headers=headers, follow_redirects=True, timeout=timeout
-    ) as response:
-        if existing and response.status_code != 206:
-            existing = 0
-        response.raise_for_status()
-        downloaded = existing
-        with dest_path.open("ab" if existing else "wb") as file:
-            for chunk in response.iter_bytes(DOWNLOAD_CHUNK_BYTES):
-                file.write(chunk)
-                downloaded += len(chunk)
-                if on_progress is not None:
-                    on_progress(downloaded, expected_bytes)
-
-    final_size = dest_path.stat().st_size
-    if final_size != expected_bytes:
-        raise OSError(
-            f"incomplete download for {url}: got {final_size} bytes, expected {expected_bytes}"
-        )
+    max_reconnects: int = DEFAULT_MAX_RECONNECTS,
+) -> Iterator[bytes]:
+    downloaded = 0
+    reconnects = 0
+    while downloaded < expected_bytes:
+        headers = {"Range": f"bytes={downloaded}-"} if downloaded else {}
+        try:
+            with httpx.stream(
+                "GET", url, headers=headers, follow_redirects=True, timeout=timeout
+            ) as response:
+                if downloaded and response.status_code != 206:
+                    raise OSError(f"server does not support resuming {url}")
+                response.raise_for_status()
+                for chunk in response.iter_bytes(DOWNLOAD_CHUNK_BYTES):
+                    downloaded += len(chunk)
+                    if on_progress is not None:
+                        on_progress(downloaded, expected_bytes)
+                    yield chunk
+        except (httpx.HTTPError, OSError):
+            reconnects += 1
+            if reconnects > max_reconnects:
+                raise
 
 
 def process_archive(
@@ -136,15 +156,13 @@ def process_archive(
 ) -> None:
     stem = archive_stem(target.url)
     output_dir = tmp_dir / stem
-    archive_path = tmp_dir / f"{stem}.download"
     tmp_dir.mkdir(parents=True, exist_ok=True)
-
-    download_with_resume(target.url, archive_path, expected_bytes, on_progress)
 
     decompressor = zstd.ZstdDecompressor()
     with (
-        archive_path.open("rb") as compressed,
-        decompressor.stream_reader(compressed) as reader,
+        decompressor.stream_reader(
+            _IterReader(stream_archive_bytes(target.url, expected_bytes, on_progress))  # type: ignore[arg-type]
+        ) as reader,
         tarfile.open(fileobj=reader, mode="r|") as source_tar,
     ):
         for shard, chunk_path in repack_archive_stream(source_tar, output_dir, rotation_bytes):
@@ -153,7 +171,6 @@ def process_archive(
             client.upload_file(str(chunk_path), bucket, key)
             chunk_path.unlink()
 
-    archive_path.unlink()
     shutil.rmtree(output_dir, ignore_errors=True)
 
 
