@@ -10,7 +10,7 @@ NonEmptyStr = Annotated[str, Field(min_length=1)]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="MUSICALYZE_")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="MUSICALYZE_", extra="ignore")
 
     s3_endpoint_url: HttpUrl
     s3_region: NonEmptyStr

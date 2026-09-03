@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -67,6 +69,30 @@ def test_kv_namespace_id_must_be_32_char_hex() -> None:
 def test_empty_db_host_is_rejected() -> None:
     with pytest.raises(ValidationError):
         _settings(db_host="")
+
+
+def test_tolerates_unprefixed_keys_in_env_file_belonging_to_other_tools(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "MUSICALYZE_S3_ENDPOINT_URL=https://s3.example.com\n"
+        "MUSICALYZE_S3_REGION=garage\n"
+        "MUSICALYZE_S3_BUCKET=dev-bucket\n"
+        "MUSICALYZE_S3_ACCESS_KEY=test-access-key\n"
+        "MUSICALYZE_S3_SECRET_KEY=test-secret-key\n"
+        f"MUSICALYZE_KV_ACCOUNT_ID={_VALID_KV_ACCOUNT_ID}\n"
+        f"MUSICALYZE_KV_NAMESPACE_ID={_VALID_KV_NAMESPACE_ID}\n"
+        "MUSICALYZE_KV_API_TOKEN=test-token\n"
+        "MUSICALYZE_DB_HOST=localhost\n"
+        "MUSICALYZE_DB_PORT=5432\n"
+        "MUSICALYZE_DB_USER=musicalyze\n"
+        "MUSICALYZE_DB_PASSWORD=musicalyze\n"
+        "MUSICALYZE_DB_NAME=musicalyze\n"
+        "HF_TOKEN=hf_some_token_owned_by_huggingface_hub_not_us\n"
+    )
+
+    settings = Settings(_env_file=env_file)  # type: ignore[call-arg]
+
+    assert settings.db_host == "localhost"
 
 
 def test_secret_fields_are_masked_in_repr() -> None:
