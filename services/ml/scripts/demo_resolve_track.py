@@ -4,7 +4,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from ml.core.config import Settings
-from ml.serving.acousticbrainz.find_song_acousticbrainz import AcousticBrainzDumpNotExtractedError
 from ml.serving.feature_store.repository import get_track_features
 from ml.serving.feature_store.resolution import resolve_track
 
@@ -20,17 +19,14 @@ def main() -> None:
 
     with Session(engine) as session:
         print(f"Resolving '{title}' by {artist} (track_id={track_id})...")
-        try:
-            resolve_track(
-                session,
-                settings,
-                track_id,
-                artist=artist,
-                title=title,
-                musicbrainz_id=musicbrainz_id,
-            )
-        except AcousticBrainzDumpNotExtractedError as error:
-            print(f"AcousticBrainz enrichment skipped: {error}")
+        resolve_track(
+            session,
+            settings,
+            track_id,
+            artist=artist,
+            title=title,
+            musicbrainz_id=musicbrainz_id,
+        )
         session.commit()
 
         row = get_track_features(session, track_id)
