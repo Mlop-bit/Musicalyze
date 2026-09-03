@@ -29,6 +29,12 @@ def _settings(**overrides: object) -> Settings:
     return Settings.model_validate(values)
 
 
+def test_acousticbrainz_shard_cache_dir_has_a_default() -> None:
+    settings = _settings()
+
+    assert settings.acousticbrainz_shard_cache_dir == Path("acousticbrainz-shard-cache")
+
+
 def test_database_url_builds_postgres_dsn_with_psycopg_driver() -> None:
     settings = _settings(
         db_host="db.internal",
