@@ -64,3 +64,18 @@ def test_set_cached_value_puts_value_with_correct_url_and_auth() -> None:
         content="some-value",
     )
     fake_response.raise_for_status.assert_called_once()
+
+
+def test_set_cached_value_appends_expiration_ttl_when_given() -> None:
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+
+    with patch("ml.core.cache.httpx.put", return_value=fake_response) as mock_put:
+        set_cached_value("some-key", "some-value", _settings(), expiration_ttl=3600)
+
+    mock_put.assert_called_once_with(
+        f"https://api.cloudflare.com/client/v4/accounts/{'0' * 32}"
+        f"/storage/kv/namespaces/{'1' * 32}/values/some-key?expiration_ttl=3600",
+        headers={"Authorization": "Bearer test-token"},
+        content="some-value",
+    )

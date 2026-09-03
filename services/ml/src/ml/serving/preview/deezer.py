@@ -8,6 +8,9 @@ from ml.core.config import Settings
 
 BASE_URL = "https://api.deezer.com"
 TIMEOUT = 10.0
+# Deezer signs preview URLs with a short-lived expiry, so caching a search
+# result longer than that would serve back a dead link.
+SEARCH_CACHE_TTL_SECONDS = 3600
 # Deezer's API blocks requests carrying a generic HTTP client user agent.
 HEADERS = {
     "User-Agent": (
@@ -46,7 +49,9 @@ def search_deezer_track(
         return json.loads(cached)
 
     result = _search_deezer_track(isrc, artist, track, query)
-    set_cached_value(cache_key, json.dumps(result), settings)
+    set_cached_value(
+        cache_key, json.dumps(result), settings, expiration_ttl=SEARCH_CACHE_TTL_SECONDS
+    )
     return result
 
 
