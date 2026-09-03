@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 import zstandard as zstd
 from botocore.exceptions import ClientError
@@ -18,13 +19,13 @@ from ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3 impo
     archive_stem,
     build_archive_plan,
     done_marker_key,
-    download_with_resume,
     is_archive_done,
     main,
     mark_archive_done,
     process_archive,
     process_archive_with_retries,
     process_one_archive,
+    stream_archive_bytes,
 )
 from ml.serving.acousticbrainz.s3_shards import unpack_shard
 
@@ -149,6 +150,12 @@ class _FakeStreamContext:
         return False
 
 
+class _FailAfterYieldingResponse(_FakeStreamResponse):
+    def iter_bytes(self, chunk_size: int) -> Iterator[bytes]:
+        yield self._body
+        raise httpx.ReadError("connection reset")
+
+
 def test_process_archive_uploads_one_chunk_per_shard_and_cleans_up(tmp_path: Path) -> None:
     payload = {"mood": "happy"}
     archive_bytes = _make_source_archive_bytes(
@@ -187,99 +194,66 @@ def test_process_archive_uploads_one_chunk_per_shard_and_cleans_up(tmp_path: Pat
     assert client.upload_file.call_count == 1
     assert not uploaded_paths[0].exists()
     assert not (tmp_path / "work" / "acousticbrainz-highlevel-json-20220623-0").exists()
-    assert not (tmp_path / "work" / "acousticbrainz-highlevel-json-20220623-0.download").exists()
     restored = tmp_path / "restored" / "1" / "aaa-0.json"
     assert json.loads(restored.read_text(encoding="utf-8")) == payload
 
 
-def test_download_with_resume_fetches_full_file_when_nothing_local(tmp_path: Path) -> None:
+def test_stream_archive_bytes_yields_the_full_body_in_one_pass() -> None:
     body = b"a" * 100
-    dest = tmp_path / "archive.download"
     progress: list[tuple[int, int]] = []
 
     with patch(
         "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
         return_value=_FakeStreamContext(_FakeStreamResponse(body)),
     ) as mock_stream:
-        download_with_resume(
-            "https://example.com/x",
-            dest,
-            len(body),
-            lambda downloaded, expected: progress.append((downloaded, expected)),
+        collected = b"".join(
+            stream_archive_bytes(
+                "https://example.com/x",
+                len(body),
+                lambda downloaded, expected: progress.append((downloaded, expected)),
+            )
         )
 
     mock_stream.assert_called_once_with(
         "GET", "https://example.com/x", headers={}, follow_redirects=True, timeout=60.0
     )
-    assert dest.read_bytes() == body
+    assert collected == body
     assert progress[-1] == (100, 100)
 
 
-def test_download_with_resume_requests_a_range_when_a_partial_file_exists(tmp_path: Path) -> None:
-    dest = tmp_path / "archive.download"
-    dest.write_bytes(b"a" * 40)
+def test_stream_archive_bytes_reconnects_with_a_range_header_after_a_transient_failure() -> None:
+    first_chunk = b"a" * 40
     remainder = b"b" * 60
 
     with patch(
         "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
-        return_value=_FakeStreamContext(_FakeStreamResponse(remainder, status_code=206)),
+        side_effect=[
+            _FakeStreamContext(_FailAfterYieldingResponse(first_chunk)),
+            _FakeStreamContext(_FakeStreamResponse(remainder, status_code=206)),
+        ],
     ) as mock_stream:
-        download_with_resume("https://example.com/x", dest, 100)
+        collected = b"".join(stream_archive_bytes("https://example.com/x", 100))
 
-    mock_stream.assert_called_once_with(
-        "GET",
-        "https://example.com/x",
-        headers={"Range": "bytes=40-"},
-        follow_redirects=True,
-        timeout=60.0,
-    )
-    assert dest.read_bytes() == b"a" * 40 + remainder
+    assert collected == first_chunk + remainder
+    assert mock_stream.call_args_list[0].kwargs["headers"] == {}
+    assert mock_stream.call_args_list[1].kwargs["headers"] == {"Range": "bytes=40-"}
 
 
-def test_download_with_resume_restarts_when_server_ignores_the_range_header(tmp_path: Path) -> None:
-    dest = tmp_path / "archive.download"
-    dest.write_bytes(b"stale-data")
-    full_body = b"c" * 100
-
-    with patch(
-        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
-        return_value=_FakeStreamContext(_FakeStreamResponse(full_body, status_code=200)),
-    ):
-        download_with_resume("https://example.com/x", dest, len(full_body))
-
-    assert dest.read_bytes() == full_body
+def _always_fail_to_connect(*_args: object, **_kwargs: object) -> _FakeStreamContext:
+    return _FakeStreamContext(_FailAfterYieldingResponse(b""))
 
 
-def test_download_with_resume_skips_the_network_when_already_complete(tmp_path: Path) -> None:
-    dest = tmp_path / "archive.download"
-    dest.write_bytes(b"a" * 100)
-    progress: list[tuple[int, int]] = []
-
-    with patch(
-        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream"
-    ) as mock_stream:
-        download_with_resume(
-            "https://example.com/x",
-            dest,
-            100,
-            lambda downloaded, expected: progress.append((downloaded, expected)),
-        )
-
-    mock_stream.assert_not_called()
-    assert progress == [(100, 100)]
-
-
-def test_download_with_resume_raises_when_the_final_size_does_not_match(tmp_path: Path) -> None:
-    dest = tmp_path / "archive.download"
-
+def test_stream_archive_bytes_gives_up_after_max_reconnects() -> None:
     with (
         patch(
             "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
-            return_value=_FakeStreamContext(_FakeStreamResponse(b"too-short")),
-        ),
-        pytest.raises(OSError, match="incomplete download"),
+            side_effect=_always_fail_to_connect,
+        ) as mock_stream,
+        pytest.raises(httpx.HTTPError),
     ):
-        download_with_resume("https://example.com/x", dest, 1000)
+        list(stream_archive_bytes("https://example.com/x", 100, max_reconnects=2))
+
+    assert mock_stream.call_count == 3
 
 
 def test_process_archive_with_retries_retries_transient_failures_then_succeeds() -> None:
