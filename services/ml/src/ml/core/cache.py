@@ -21,9 +21,14 @@ def get_cached_value(key: str, settings: Settings) -> str | None:
     return response.text
 
 
-def set_cached_value(key: str, value: str, settings: Settings) -> None:
+def set_cached_value(
+    key: str, value: str, settings: Settings, expiration_ttl: int | None = None
+) -> None:
+    url = _values_url(settings, key)
+    if expiration_ttl is not None:
+        url = f"{url}?expiration_ttl={expiration_ttl}"
     response = httpx.put(
-        _values_url(settings, key),
+        url,
         headers={"Authorization": f"Bearer {settings.kv_api_token.get_secret_value()}"},
         content=value,
     )

@@ -5,7 +5,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from ml.core.config import Settings
-from ml.serving.preview.deezer import search_deezer_track
+from ml.serving.preview.deezer import SEARCH_CACHE_TTL_SECONDS, search_deezer_track
 
 
 def _settings() -> Settings:
@@ -178,3 +178,4 @@ def test_search_caches_the_result_under_a_key_built_from_the_criteria() -> None:
     cache_key, cached_value, _ = mock_set_cached_value.call_args.args
     assert cache_key == "deezer-search:GB28K1100036|||"
     assert json.loads(cached_value) == result
+    assert mock_set_cached_value.call_args.kwargs == {"expiration_ttl": SEARCH_CACHE_TTL_SECONDS}
