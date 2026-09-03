@@ -2,6 +2,9 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+from botocore.exceptions import ClientError
+
 from ml.serving.acousticbrainz.find_song_acousticbrainz import HIGHLEVEL_DIR_NAME, LOWLEVEL_DIR_NAME
 from ml.serving.acousticbrainz.s3_lookup import ensure_shard_cached, get_acousticbrainz_data_from_s3
 from ml.serving.acousticbrainz.s3_shards import pack_shard
@@ -92,6 +95,52 @@ def test_ensure_shard_cached_evicts_oldest_shard_past_the_limit(tmp_path: Path) 
 
     assert not (cache_dir / HIGHLEVEL_DIR_NAME / "highlevel" / SHARD).exists()
     assert (cache_dir / HIGHLEVEL_DIR_NAME / "highlevel" / other_mbid[:2]).exists()
+
+
+def test_ensure_shard_cached_retries_transient_client_errors_then_succeeds(tmp_path: Path) -> None:
+    objects: dict[str, bytes] = {}
+    objects.update(_seed_bucket_with_shard(tmp_path, HIGHLEVEL_DIR_NAME, "highlevel", {"a": 1}))
+    objects.update(_seed_bucket_with_shard(tmp_path, LOWLEVEL_DIR_NAME, "lowlevel", {"b": 2}))
+    client = _fake_client(objects)
+    real_list_objects_v2 = client.list_objects_v2.side_effect
+    call_count = 0
+
+    def flaky_list_objects_v2(**kwargs: object) -> dict[str, object]:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ClientError({"Error": {"Code": "403", "Message": "Forbidden"}}, "ListObjectsV2")
+        return real_list_objects_v2(**kwargs)
+
+    client.list_objects_v2.side_effect = flaky_list_objects_v2
+    cache_dir = tmp_path / "cache"
+    sleeps: list[float] = []
+
+    ensure_shard_cached(MBID, cache_dir, client, "bucket", tmp_path / "work", sleep=sleeps.append)
+
+    filename = f"{MBID}-0.json"
+    highlevel_file = cache_dir / HIGHLEVEL_DIR_NAME / "highlevel" / SHARD / SUBSHARD / filename
+    assert json.loads(highlevel_file.read_text(encoding="utf-8")) == {"a": 1}
+    assert sleeps == [2]
+
+
+def test_ensure_shard_cached_reraises_after_exhausting_retries(tmp_path: Path) -> None:
+    client = MagicMock()
+    client.list_objects_v2.side_effect = ClientError(
+        {"Error": {"Code": "403", "Message": "Forbidden"}}, "ListObjectsV2"
+    )
+    cache_dir = tmp_path / "cache"
+
+    with pytest.raises(ClientError):
+        ensure_shard_cached(
+            MBID,
+            cache_dir,
+            client,
+            "bucket",
+            tmp_path / "work",
+            attempts=2,
+            sleep=lambda _seconds: None,
+        )
 
 
 def test_get_acousticbrainz_data_from_s3_returns_nulls_when_nothing_uploaded_yet(
