@@ -134,3 +134,5 @@ cython_debug/
 # AcousticBrainz Data
 acousticbrainz-dumps/
 acousticbrainz-extracted/
+acousticbrainz-s3-tmp/
+acousticbrainz-shard-cache/
