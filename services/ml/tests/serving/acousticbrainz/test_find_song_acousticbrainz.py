@@ -5,6 +5,7 @@ import pytest
 
 from ml.serving.acousticbrainz.constants import DUMP_VERSION
 from ml.serving.acousticbrainz.find_song_acousticbrainz import (
+    LOWLEVEL_DIR_NAME,
     AcousticBrainzDumpNotExtractedError,
     get_acousticbrainz_data,
 )
@@ -24,9 +25,13 @@ def _write_submission(
     (shard_dir / f"{MBID}-{index}.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
+def test_lowlevel_dir_name_matches_the_json_dump_not_the_csv_features_export() -> None:
+    assert f"acousticbrainz-lowlevel-json-{DUMP_VERSION}" == LOWLEVEL_DIR_NAME
+
+
 def test_returns_data_for_first_submission(tmp_path: Path) -> None:
     _write_submission(tmp_path, "highlevel-json", "highlevel", 0, {"highlevel": "hl"})
-    _write_submission(tmp_path, "lowlevel-features", "lowlevel", 0, {"lowlevel": "ll"})
+    _write_submission(tmp_path, "lowlevel-json", "lowlevel", 0, {"lowlevel": "ll"})
 
     result = get_acousticbrainz_data(MBID, tmp_path)
 
@@ -44,7 +49,7 @@ def test_falls_back_to_lowest_available_submission_when_zero_is_missing(tmp_path
 
 def test_returns_none_for_dataset_missing_this_mbid(tmp_path: Path) -> None:
     _write_submission(tmp_path, "highlevel-json", "highlevel", 0, {"highlevel": "hl"})
-    (tmp_path / f"acousticbrainz-lowlevel-features-{DUMP_VERSION}" / "lowlevel").mkdir(parents=True)
+    (tmp_path / f"acousticbrainz-lowlevel-json-{DUMP_VERSION}" / "lowlevel").mkdir(parents=True)
 
     result = get_acousticbrainz_data(MBID, tmp_path)
 

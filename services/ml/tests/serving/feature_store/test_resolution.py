@@ -1,4 +1,3 @@
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from ml.core.config import Settings
@@ -21,7 +20,6 @@ def _settings() -> Settings:
             "db_user": "musicalyze",
             "db_password": "musicalyze",
             "db_name": "musicalyze",
-            "acousticbrainz_extract_dir": Path("extracted"),
         }
     )
 
@@ -93,9 +91,7 @@ def test_resolve_track_saves_acousticbrainz_enrichment_when_mbid_is_known() -> N
     ):
         resolve_track(fake_session, settings, "track-1", musicbrainz_id="mbid-1")
 
-    mock_save_enrichment.assert_called_once_with(
-        fake_session, "track-1", "mbid-1", settings.acousticbrainz_extract_dir
-    )
+    mock_save_enrichment.assert_called_once_with(fake_session, "track-1", "mbid-1", settings)
 
 
 def test_resolve_track_skips_acousticbrainz_enrichment_without_a_mbid() -> None:

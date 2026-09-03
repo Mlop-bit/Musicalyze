@@ -6,10 +6,13 @@ import httpx
 import pytest
 
 from ml.serving.acousticbrainz.download_scripts.download_acousticbrainz import (
+    HIGHLEVEL_INDEX_URL,
+    LOWLEVEL_INDEX_URL,
+    download_dumps,
     download_file,
     extract_archive,
     is_extracted,
-    list_highlevel_archive_urls,
+    list_archive_urls,
     marker_file,
 )
 
@@ -32,7 +35,7 @@ def _fake_response(status_code: int, chunks: list[bytes]) -> MagicMock:
     return response
 
 
-def test_list_highlevel_archive_urls_keeps_only_archive_links() -> None:
+def test_list_archive_urls_keeps_only_archive_links() -> None:
     html = """
     <a href="?C=N;O=D">Name</a>
     <a href="../">Parent Directory</a>
@@ -49,12 +52,35 @@ def test_list_highlevel_archive_urls_keeps_only_archive_links() -> None:
         "ml.serving.acousticbrainz.download_scripts.download_acousticbrainz.httpx.get",
         return_value=fake_response,
     ):
-        urls = list_highlevel_archive_urls("https://example.com/dumps/")
+        urls = list_archive_urls("https://example.com/dumps/")
 
     assert urls == [
         "https://example.com/dumps/acousticbrainz-highlevel-json-20220623-0.tar.zst",
         "https://example.com/dumps/acousticbrainz-highlevel-json-20220623-1.tar.bz2",
     ]
+
+
+def test_download_dumps_lists_both_highlevel_and_lowlevel_json_indexes(tmp_path: Path) -> None:
+    seen_index_urls: list[str] = []
+
+    def fake_list_archive_urls(index_url: str) -> list[str]:
+        seen_index_urls.append(index_url)
+        return [f"{index_url}part-0.tar.zst"]
+
+    with (
+        patch(
+            "ml.serving.acousticbrainz.download_scripts.download_acousticbrainz.list_archive_urls",
+            side_effect=fake_list_archive_urls,
+        ),
+        patch(
+            "ml.serving.acousticbrainz.download_scripts.download_acousticbrainz.download_file"
+        ) as fake_download_file,
+    ):
+        download_dumps(tmp_path)
+
+    assert set(seen_index_urls) == {HIGHLEVEL_INDEX_URL, LOWLEVEL_INDEX_URL}
+    assert fake_download_file.call_count == 2
+    assert "lowlevel-features" not in str(fake_download_file.call_args_list)
 
 
 def test_download_file_writes_full_content_when_nothing_downloaded_yet(tmp_path: Path) -> None:

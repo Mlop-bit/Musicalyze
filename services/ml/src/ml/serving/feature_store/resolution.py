@@ -20,6 +20,4 @@ def resolve_track(
         save_track_embedding_from_preview(session, track_id, deezer_track["preview_url"])
 
     if musicbrainz_id is not None:
-        save_acousticbrainz_enrichment(
-            session, track_id, musicbrainz_id, settings.acousticbrainz_extract_dir
-        )
+        save_acousticbrainz_enrichment(session, track_id, musicbrainz_id, settings)

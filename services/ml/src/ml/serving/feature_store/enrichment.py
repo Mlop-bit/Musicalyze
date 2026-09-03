@@ -1,9 +1,10 @@
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from ml.serving.acousticbrainz.find_song_acousticbrainz import get_acousticbrainz_data
+from ml.core.artifact_store import s3_client
+from ml.core.config import Settings
+from ml.serving.acousticbrainz.s3_lookup import get_acousticbrainz_data_from_s3
 from ml.serving.feature_store.repository import save_enrichment
 
 SOURCE = "acousticbrainz"
@@ -26,9 +27,12 @@ def _key(lowlevel: dict[str, Any] | None) -> str | None:
 
 
 def save_acousticbrainz_enrichment(
-    session: Session, track_id: str, musicbrainz_id: str, extract_dir: Path
+    session: Session, track_id: str, musicbrainz_id: str, settings: Settings
 ) -> None:
-    data = get_acousticbrainz_data(musicbrainz_id, extract_dir)
+    cache_dir = settings.acousticbrainz_shard_cache_dir
+    data = get_acousticbrainz_data_from_s3(
+        musicbrainz_id, cache_dir, s3_client(settings), settings.s3_bucket, cache_dir / ".tmp"
+    )
 
     save_enrichment(
         session,

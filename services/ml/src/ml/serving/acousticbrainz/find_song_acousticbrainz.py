@@ -5,7 +5,7 @@ from typing import Any, TypedDict
 from ml.serving.acousticbrainz.constants import DUMP_VERSION
 
 HIGHLEVEL_DIR_NAME = f"acousticbrainz-highlevel-json-{DUMP_VERSION}"
-LOWLEVEL_DIR_NAME = f"acousticbrainz-lowlevel-features-{DUMP_VERSION}"
+LOWLEVEL_DIR_NAME = f"acousticbrainz-lowlevel-json-{DUMP_VERSION}"
 
 
 class AcousticBrainzData(TypedDict):

@@ -14,21 +14,17 @@ HIGHLEVEL_INDEX_URL = (
     "https://data.metabrainz.org/pub/musicbrainz/acousticbrainz/dumps/"
     f"acousticbrainz-highlevel-json-{DUMP_VERSION}/"
 )
-LOWLEVEL_ARCHIVE_URLS = [
+LOWLEVEL_INDEX_URL = (
     "https://data.metabrainz.org/pub/musicbrainz/acousticbrainz/dumps/"
-    f"acousticbrainz-lowlevel-features-{DUMP_VERSION}/"
-    f"acousticbrainz-lowlevel-features-{DUMP_VERSION}-rhythm.tar.zst",
-    "https://data.metabrainz.org/pub/musicbrainz/acousticbrainz/dumps/"
-    f"acousticbrainz-lowlevel-features-{DUMP_VERSION}/"
-    f"acousticbrainz-lowlevel-features-{DUMP_VERSION}-tonal.tar.zst",
-]
+    f"acousticbrainz-lowlevel-json-{DUMP_VERSION}/"
+)
 ARCHIVE_SUFFIXES = (".tar.zst", ".tar.bz2")
 CHUNK_SIZE = 1024 * 1024
 HTTP_PARTIAL_CONTENT = 206
 HTTP_RANGE_NOT_SATISFIABLE = 416
 
 
-def list_highlevel_archive_urls(index_url: str = HIGHLEVEL_INDEX_URL) -> list[str]:
+def list_archive_urls(index_url: str) -> list[str]:
     response = httpx.get(index_url)
     response.raise_for_status()
     hrefs = re.findall(r'href=["\']([^"\']+)["\']', response.text)
@@ -81,7 +77,7 @@ def extract_archive(archive_path: Path, destination_dir: Path) -> None:
 
 def download_dumps(dump_dir: Path) -> list[Path]:
     dump_dir.mkdir(parents=True, exist_ok=True)
-    urls = [*LOWLEVEL_ARCHIVE_URLS, *list_highlevel_archive_urls()]
+    urls = [*list_archive_urls(LOWLEVEL_INDEX_URL), *list_archive_urls(HIGHLEVEL_INDEX_URL)]
     destinations = [dump_dir / url.rsplit("/", maxsplit=1)[-1] for url in urls]
 
     with ThreadPoolExecutor(max_workers=4) as executor:
