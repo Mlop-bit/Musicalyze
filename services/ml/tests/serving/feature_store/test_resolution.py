@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+from botocore.exceptions import ClientError
+
 from ml.core.config import Settings
 from ml.serving.feature_store.resolution import resolve_track
 
@@ -48,6 +50,44 @@ def test_resolve_track_saves_embedding_when_a_preview_is_found() -> None:
     mock_save_enrichment.assert_not_called()
 
 
+def test_resolve_track_does_not_raise_when_deezer_lookup_fails() -> None:
+    fake_session = MagicMock()
+    settings = _settings()
+
+    with (
+        patch(
+            "ml.serving.feature_store.resolution.search_deezer_track",
+            side_effect=ClientError({"Error": {"Code": "500", "Message": "boom"}}, "GetItem"),
+        ) as mock_search,
+        patch(
+            "ml.serving.feature_store.resolution.save_track_embedding_from_preview"
+        ) as mock_save_embedding,
+        patch("ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"),
+    ):
+        resolve_track(fake_session, settings, "track-1")
+
+    mock_search.assert_called_once()
+    mock_save_embedding.assert_not_called()
+
+
+def test_resolve_track_does_not_raise_when_embedding_save_fails() -> None:
+    fake_session = MagicMock()
+    settings = _settings()
+    deezer_track = {"preview_url": "https://example.com/preview.mp3"}
+
+    with (
+        patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=deezer_track),
+        patch(
+            "ml.serving.feature_store.resolution.save_track_embedding_from_preview",
+            side_effect=RuntimeError("model download failed"),
+        ) as mock_save_embedding,
+        patch("ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"),
+    ):
+        resolve_track(fake_session, settings, "track-1")
+
+    mock_save_embedding.assert_called_once()
+
+
 def test_resolve_track_skips_embedding_when_no_preview_is_found() -> None:
     fake_session = MagicMock()
 
@@ -87,6 +127,24 @@ def test_resolve_track_saves_acousticbrainz_enrichment_when_mbid_is_known() -> N
         patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=None),
         patch(
             "ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"
+        ) as mock_save_enrichment,
+    ):
+        resolve_track(fake_session, settings, "track-1", musicbrainz_id="mbid-1")
+
+    mock_save_enrichment.assert_called_once_with(fake_session, "track-1", "mbid-1", settings)
+
+
+def test_resolve_track_does_not_raise_when_acousticbrainz_enrichment_fails() -> None:
+    fake_session = MagicMock()
+    settings = _settings()
+
+    with (
+        patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=None),
+        patch(
+            "ml.serving.feature_store.resolution.save_acousticbrainz_enrichment",
+            side_effect=ClientError(
+                {"Error": {"Code": "403", "Message": "Forbidden"}}, "HeadObject"
+            ),
         ) as mock_save_enrichment,
     ):
         resolve_track(fake_session, settings, "track-1", musicbrainz_id="mbid-1")

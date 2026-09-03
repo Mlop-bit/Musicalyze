@@ -1,8 +1,11 @@
 from pathlib import Path
 from typing import Annotated
 
+from dotenv import find_dotenv, load_dotenv
 from pydantic import Field, HttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+load_dotenv(find_dotenv(usecwd=True))
 
 Port = Annotated[int, Field(gt=0, le=65535)]
 CloudflareId = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]

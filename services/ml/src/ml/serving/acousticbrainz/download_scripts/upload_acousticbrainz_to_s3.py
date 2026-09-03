@@ -1,14 +1,11 @@
-import io
 import shutil
 import tarfile
+import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from _typeshed import WriteableBuffer
 
 import httpx
 import zstandard as zstd
@@ -35,6 +32,10 @@ from ml.serving.acousticbrainz.s3_shards import (
 
 DONE_MARKER_PREFIX = f"{S3_PREFIX}/.done/"
 NOT_FOUND_ERROR_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
+DEFAULT_UPLOAD_ATTEMPTS = 6
+DEFAULT_MAX_WORKERS = 3
+MAX_BACKOFF_SECONDS = 60.0
+DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 
 ProgressCallback = Callable[[int, int], None]
 
@@ -85,24 +86,43 @@ def mark_archive_done(client: S3Client, bucket: str, stem: str) -> None:
     client.put_object(Bucket=bucket, Key=done_marker_key(stem), Body=b"")
 
 
-class _IterReader(io.RawIOBase):
-    def __init__(self, chunks: Iterable[bytes]) -> None:
-        self._iterator = iter(chunks)
-        self._buffer = b""
+def _backoff_seconds(attempt: int) -> float:
+    return min(float(2**attempt), MAX_BACKOFF_SECONDS)
 
-    def readable(self) -> bool:
-        return True
 
-    def readinto(self, b: "WriteableBuffer") -> int:
-        output = memoryview(b)  # type: ignore[arg-type]
-        while len(self._buffer) < len(output):
-            try:
-                self._buffer += next(self._iterator)
-            except StopIteration:
-                break
-        chunk, self._buffer = self._buffer[: len(output)], self._buffer[len(output) :]
-        output[: len(chunk)] = chunk
-        return len(chunk)
+def download_with_resume(
+    url: str,
+    dest_path: Path,
+    expected_bytes: int,
+    on_progress: ProgressCallback | None = None,
+    timeout: float = 60.0,
+) -> None:
+    existing = dest_path.stat().st_size if dest_path.exists() else 0
+    if existing >= expected_bytes:
+        if on_progress is not None:
+            on_progress(expected_bytes, expected_bytes)
+        return
+
+    headers = {"Range": f"bytes={existing}-"} if existing else {}
+    with httpx.stream(
+        "GET", url, headers=headers, follow_redirects=True, timeout=timeout
+    ) as response:
+        if existing and response.status_code != 206:
+            existing = 0
+        response.raise_for_status()
+        downloaded = existing
+        with dest_path.open("ab" if existing else "wb") as file:
+            for chunk in response.iter_bytes(DOWNLOAD_CHUNK_BYTES):
+                file.write(chunk)
+                downloaded += len(chunk)
+                if on_progress is not None:
+                    on_progress(downloaded, expected_bytes)
+
+    final_size = dest_path.stat().st_size
+    if final_size != expected_bytes:
+        raise OSError(
+            f"incomplete download for {url}: got {final_size} bytes, expected {expected_bytes}"
+        )
 
 
 def process_archive(
@@ -110,36 +130,30 @@ def process_archive(
     tmp_dir: Path,
     client: S3Client,
     bucket: str,
+    expected_bytes: int,
     rotation_bytes: int = DEFAULT_ROTATION_BYTES,
     on_progress: ProgressCallback | None = None,
 ) -> None:
     stem = archive_stem(target.url)
     output_dir = tmp_dir / stem
-    downloaded = 0
+    archive_path = tmp_dir / f"{stem}.download"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    with httpx.stream("GET", target.url, follow_redirects=True, timeout=60.0) as response:
-        response.raise_for_status()
-        expected = int(response.headers.get("content-length", "0"))
+    download_with_resume(target.url, archive_path, expected_bytes, on_progress)
 
-        def chunks() -> Iterable[bytes]:
-            nonlocal downloaded
-            for chunk in response.iter_bytes(1024 * 1024):
-                downloaded += len(chunk)
-                if on_progress is not None:
-                    on_progress(downloaded, expected)
-                yield chunk
+    decompressor = zstd.ZstdDecompressor()
+    with (
+        archive_path.open("rb") as compressed,
+        decompressor.stream_reader(compressed) as reader,
+        tarfile.open(fileobj=reader, mode="r|") as source_tar,
+    ):
+        for shard, chunk_path in repack_archive_stream(source_tar, output_dir, rotation_bytes):
+            prefix = shard_prefix(target.dataset_dir_name, target.level, shard)
+            key = f"{prefix}{stem}-{chunk_path.name}"
+            client.upload_file(str(chunk_path), bucket, key)
+            chunk_path.unlink()
 
-        decompressor = zstd.ZstdDecompressor()
-        with (
-            decompressor.stream_reader(_IterReader(chunks())) as reader,  # type: ignore[arg-type]
-            tarfile.open(fileobj=reader, mode="r|") as source_tar,
-        ):
-            for shard, chunk_path in repack_archive_stream(source_tar, output_dir, rotation_bytes):
-                prefix = shard_prefix(target.dataset_dir_name, target.level, shard)
-                key = f"{prefix}{stem}-{chunk_path.name}"
-                client.upload_file(str(chunk_path), bucket, key)
-                chunk_path.unlink()
-
+    archive_path.unlink()
     shutil.rmtree(output_dir, ignore_errors=True)
 
 
@@ -148,19 +162,22 @@ def process_archive_with_retries(
     tmp_dir: Path,
     client: S3Client,
     bucket: str,
+    expected_bytes: int,
     rotation_bytes: int = DEFAULT_ROTATION_BYTES,
     on_progress: ProgressCallback | None = None,
-    attempts: int = 3,
+    attempts: int = DEFAULT_UPLOAD_ATTEMPTS,
     sleep: Callable[[float], None] = time.sleep,
 ) -> bool:
     stem = archive_stem(target.url)
     for attempt in range(1, attempts + 1):
         try:
-            process_archive(target, tmp_dir, client, bucket, rotation_bytes, on_progress)
+            process_archive(
+                target, tmp_dir, client, bucket, expected_bytes, rotation_bytes, on_progress
+            )
         except (httpx.HTTPError, OSError, ClientError) as error:
             print(f"\n{stem}: attempt {attempt}/{attempts} failed: {error}")
             if attempt < attempts:
-                sleep(2**attempt)
+                sleep(_backoff_seconds(attempt))
         else:
             return True
     return False
@@ -178,60 +195,100 @@ class ProgressReporter:
         self.plan_size = plan_size
         self.completed_bytes = 0
         self._last_permille = -1
+        self._lock = threading.Lock()
 
     def start_archive(self, index: int, stem: str) -> ProgressCallback:
         def on_progress(downloaded: int, expected: int) -> None:
-            archive_pct = downloaded / expected if expected else 0.0
-            overall_pct = (self.completed_bytes + downloaded) / self.total_bytes
-            permille = int(overall_pct * 1000)
-            if permille == self._last_permille:
-                return
-            self._last_permille = permille
-            print(
-                f"\r[{index}/{self.plan_size}] {stem}: "
-                f"{archive_pct:6.1%} archive | {overall_pct:6.1%} overall     ",
-                end="",
-                flush=True,
-            )
+            with self._lock:
+                archive_pct = downloaded / expected if expected else 0.0
+                overall_pct = (self.completed_bytes + downloaded) / self.total_bytes
+                permille = int(overall_pct * 1000)
+                if permille == self._last_permille:
+                    return
+                self._last_permille = permille
+                print(
+                    f"\r[{index}/{self.plan_size}] {stem}: "
+                    f"{archive_pct:6.1%} archive | {overall_pct:6.1%} overall     ",
+                    end="",
+                    flush=True,
+                )
 
         return on_progress
 
     def finish_archive(self, size_bytes: int) -> None:
-        self.completed_bytes += size_bytes
-        print()
+        with self._lock:
+            self.completed_bytes += size_bytes
+            print()
 
     def skip_archive(self, index: int, stem: str, size_bytes: int) -> None:
-        self.completed_bytes += size_bytes
-        overall_pct = self.completed_bytes / self.total_bytes
-        print(f"[{index}/{self.plan_size}] {stem}: already uploaded, skipping ({overall_pct:.1%})")
+        with self._lock:
+            self.completed_bytes += size_bytes
+            overall_pct = self.completed_bytes / self.total_bytes
+            print(
+                f"[{index}/{self.plan_size}] {stem}: already uploaded, skipping ({overall_pct:.1%})"
+            )
 
 
-def main(settings: Settings, tmp_dir: Path, rotation_bytes: int = DEFAULT_ROTATION_BYTES) -> None:
+def process_one_archive(
+    index: int,
+    target: ArchiveTarget,
+    tmp_dir: Path,
+    client: S3Client,
+    bucket: str,
+    expected_bytes: int,
+    rotation_bytes: int,
+    reporter: ProgressReporter,
+) -> None:
+    stem = archive_stem(target.url)
+    if is_archive_done(client, bucket, stem):
+        reporter.skip_archive(index, stem, expected_bytes)
+        return
+
+    succeeded = process_archive_with_retries(
+        target,
+        tmp_dir,
+        client,
+        bucket,
+        expected_bytes,
+        rotation_bytes,
+        reporter.start_archive(index, stem),
+    )
+    if not succeeded:
+        print(f"{stem}: giving up after retries, will retry on next run")
+        return
+
+    mark_archive_done(client, bucket, stem)
+    reporter.finish_archive(expected_bytes)
+
+
+def main(
+    settings: Settings,
+    tmp_dir: Path,
+    rotation_bytes: int = DEFAULT_ROTATION_BYTES,
+    max_workers: int = DEFAULT_MAX_WORKERS,
+) -> None:
     client = s3_client(settings)
     plan = build_archive_plan()
     sizes = {target.url: archive_content_length(target.url) for target in plan}
     reporter = ProgressReporter(sum(sizes.values()), len(plan))
 
-    for index, target in enumerate(plan, start=1):
-        stem = archive_stem(target.url)
-        if is_archive_done(client, settings.s3_bucket, stem):
-            reporter.skip_archive(index, stem, sizes[target.url])
-            continue
-
-        succeeded = process_archive_with_retries(
-            target,
-            tmp_dir,
-            client,
-            settings.s3_bucket,
-            rotation_bytes,
-            reporter.start_archive(index, stem),
-        )
-        if not succeeded:
-            print(f"{stem}: giving up after retries, will retry on next run")
-            continue
-
-        mark_archive_done(client, settings.s3_bucket, stem)
-        reporter.finish_archive(sizes[target.url])
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(
+                process_one_archive,
+                index,
+                target,
+                tmp_dir,
+                client,
+                settings.s3_bucket,
+                sizes[target.url],
+                rotation_bytes,
+                reporter,
+            )
+            for index, target in enumerate(plan, start=1)
+        ]
+        for future in as_completed(futures):
+            future.result()
 
     print(f"Done: {len(plan)}/{len(plan)} archives, {reporter.completed_bytes / 1024**3:.1f} GiB")
 
