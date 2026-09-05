@@ -41,7 +41,7 @@ DEFAULT_UPLOAD_ATTEMPTS = 6
 DEFAULT_MAX_WORKERS = 3
 MAX_BACKOFF_SECONDS = 60.0
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
-DEFAULT_MAX_RECONNECTS = 5
+DEFAULT_MAX_RECONNECTS = 50
 
 ProgressCallback = Callable[[int, int], None]
 
@@ -122,6 +122,7 @@ def stream_archive_bytes(
     on_progress: ProgressCallback | None = None,
     timeout: float = 60.0,
     max_reconnects: int = DEFAULT_MAX_RECONNECTS,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> Iterator[bytes]:
     downloaded = 0
     reconnects = 0
@@ -143,6 +144,7 @@ def stream_archive_bytes(
             reconnects += 1
             if reconnects > max_reconnects:
                 raise
+            sleep(_backoff_seconds(reconnects))
 
 
 def process_archive(

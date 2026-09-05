@@ -232,11 +232,34 @@ def test_stream_archive_bytes_reconnects_with_a_range_header_after_a_transient_f
             _FakeStreamContext(_FakeStreamResponse(remainder, status_code=206)),
         ],
     ) as mock_stream:
-        collected = b"".join(stream_archive_bytes("https://example.com/x", 100))
+        collected = b"".join(
+            stream_archive_bytes("https://example.com/x", 100, sleep=lambda _seconds: None)
+        )
 
     assert collected == first_chunk + remainder
     assert mock_stream.call_args_list[0].kwargs["headers"] == {}
     assert mock_stream.call_args_list[1].kwargs["headers"] == {"Range": "bytes=40-"}
+
+
+def test_stream_archive_bytes_backs_off_between_reconnects() -> None:
+    first_chunk = b"a" * 40
+    remainder = b"b" * 60
+    sleeps: list[float] = []
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
+        side_effect=[
+            _FakeStreamContext(_FailAfterYieldingResponse(first_chunk)),
+            _FakeStreamContext(_FailAfterYieldingResponse(b"")),
+            _FakeStreamContext(_FakeStreamResponse(remainder, status_code=206)),
+        ],
+    ):
+        collected = b"".join(
+            stream_archive_bytes("https://example.com/x", 100, sleep=sleeps.append)
+        )
+
+    assert collected == first_chunk + remainder
+    assert sleeps == [2, 4]
 
 
 def _always_fail_to_connect(*_args: object, **_kwargs: object) -> _FakeStreamContext:
@@ -251,7 +274,14 @@ def test_stream_archive_bytes_gives_up_after_max_reconnects() -> None:
         ) as mock_stream,
         pytest.raises(httpx.HTTPError),
     ):
-        list(stream_archive_bytes("https://example.com/x", 100, max_reconnects=2))
+        list(
+            stream_archive_bytes(
+                "https://example.com/x",
+                100,
+                max_reconnects=2,
+                sleep=lambda _seconds: None,
+            )
+        )
 
     assert mock_stream.call_count == 3
 
