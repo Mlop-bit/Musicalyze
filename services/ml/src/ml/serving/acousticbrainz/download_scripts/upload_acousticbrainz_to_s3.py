@@ -1,4 +1,5 @@
 import io
+import random
 import shutil
 import tarfile
 import threading
@@ -187,6 +188,7 @@ def process_archive_with_retries(
     on_progress: ProgressCallback | None = None,
     attempts: int = DEFAULT_UPLOAD_ATTEMPTS,
     sleep: Callable[[float], None] = time.sleep,
+    jitter: Callable[[], float] = lambda: random.uniform(0, 1),
 ) -> bool:
     stem = archive_stem(target.url)
     for attempt in range(1, attempts + 1):
@@ -197,7 +199,7 @@ def process_archive_with_retries(
         except (httpx.HTTPError, OSError, ClientError, S3UploadFailedError) as error:
             print(f"\n{stem}: attempt {attempt}/{attempts} failed: {error}")
             if attempt < attempts:
-                sleep(_backoff_seconds(attempt))
+                sleep(_backoff_seconds(attempt) + jitter())
         else:
             return True
     return False

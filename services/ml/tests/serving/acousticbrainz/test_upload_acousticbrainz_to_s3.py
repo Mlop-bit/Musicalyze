@@ -309,6 +309,7 @@ def test_process_archive_with_retries_retries_transient_failures_then_succeeds()
             1000,
             attempts=3,
             sleep=sleeps.append,
+            jitter=lambda: 0.0,
         )
 
     assert succeeded is True
@@ -379,10 +380,33 @@ def test_process_archive_with_retries_caps_the_backoff_delay() -> None:
             1000,
             attempts=8,
             sleep=sleeps.append,
+            jitter=lambda: 0.0,
         )
 
     assert succeeded is False
     assert sleeps == [2, 4, 8, 16, 32, 60, 60]
+
+
+def test_process_archive_with_retries_adds_jitter_to_the_backoff_delay() -> None:
+    target = ArchiveTarget(url="https://example.com/x-0.tar.zst", dataset_dir_name="d", level="l")
+    sleeps: list[float] = []
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.process_archive",
+        side_effect=TimeoutError("connection reset"),
+    ):
+        process_archive_with_retries(
+            target,
+            Path("/tmp/does-not-matter"),
+            MagicMock(),
+            "bucket",
+            1000,
+            attempts=2,
+            sleep=sleeps.append,
+            jitter=lambda: 0.7,
+        )
+
+    assert sleeps == [2.7]
 
 
 def test_process_one_archive_skips_when_already_marked_done() -> None:
