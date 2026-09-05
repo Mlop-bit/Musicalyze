@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 import zstandard as zstd
+from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import ClientError
 
 from ml.serving.acousticbrainz.constants import DUMP_VERSION
@@ -313,6 +314,33 @@ def test_process_archive_with_retries_retries_transient_failures_then_succeeds()
     assert succeeded is True
     assert len(attempts_made) == 3
     assert sleeps == [2, 4]
+
+
+def test_process_archive_with_retries_retries_s3_upload_failures_then_succeeds() -> None:
+    target = ArchiveTarget(url="https://example.com/x-0.tar.zst", dataset_dir_name="d", level="l")
+    attempts_made: list[int] = []
+
+    def flaky_process_archive(*args: object, **kwargs: object) -> None:
+        attempts_made.append(1)
+        if len(attempts_made) < 2:
+            raise S3UploadFailedError("An error occurred (530) calling the PutObject operation")
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.process_archive",
+        side_effect=flaky_process_archive,
+    ):
+        succeeded = process_archive_with_retries(
+            target,
+            Path("/tmp/does-not-matter"),
+            MagicMock(),
+            "bucket",
+            1000,
+            attempts=2,
+            sleep=lambda _seconds: None,
+        )
+
+    assert succeeded is True
+    assert len(attempts_made) == 2
 
 
 def test_process_archive_with_retries_gives_up_after_max_attempts() -> None:

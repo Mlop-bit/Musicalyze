@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 import httpx
 import zstandard as zstd
+from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import ClientError
 from mypy_boto3_s3.client import S3Client
 
@@ -193,7 +194,7 @@ def process_archive_with_retries(
             process_archive(
                 target, tmp_dir, client, bucket, expected_bytes, rotation_bytes, on_progress
             )
-        except (httpx.HTTPError, OSError, ClientError) as error:
+        except (httpx.HTTPError, OSError, ClientError, S3UploadFailedError) as error:
             print(f"\n{stem}: attempt {attempt}/{attempts} failed: {error}")
             if attempt < attempts:
                 sleep(_backoff_seconds(attempt))
