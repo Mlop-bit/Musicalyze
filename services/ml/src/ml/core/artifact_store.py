@@ -14,7 +14,12 @@ def s3_client(settings: Settings) -> S3Client:
         region_name=settings.s3_region,
         aws_access_key_id=settings.s3_access_key,
         aws_secret_access_key=settings.s3_secret_key.get_secret_value(),
-        config=Config(s3={"addressing_style": "path"}, retries={"mode": "standard"}),
+        config=Config(
+            s3={"addressing_style": "path"},
+            retries={"mode": "standard"},
+            connect_timeout=10,
+            read_timeout=120,
+        ),
     )
 
 

@@ -28,7 +28,7 @@ from ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3 impo
     process_one_archive,
     stream_archive_bytes,
 )
-from ml.serving.acousticbrainz.s3_shards import unpack_shard
+from ml.serving.acousticbrainz.s3_shards import DEFAULT_ROTATION_BYTES, unpack_shard
 
 
 def test_archive_stem_strips_tar_zst_suffix() -> None:
@@ -175,7 +175,7 @@ def test_process_archive_uploads_one_chunk_per_shard_and_cleans_up(tmp_path: Pat
     client = MagicMock()
     uploaded_paths: list[Path] = []
 
-    def fake_upload_file(local_path: str, bucket: str, key: str) -> None:
+    def fake_upload_file(local_path: str, bucket: str, key: str, **_kwargs: object) -> None:
         uploaded_paths.append(Path(local_path))
         assert bucket == "dev-bucket"
         assert key == (
@@ -197,6 +197,34 @@ def test_process_archive_uploads_one_chunk_per_shard_and_cleans_up(tmp_path: Pat
     assert not (tmp_path / "work" / "acousticbrainz-highlevel-json-20220623-0").exists()
     restored = tmp_path / "restored" / "1" / "aaa-0.json"
     assert json.loads(restored.read_text(encoding="utf-8")) == payload
+
+
+def test_process_archive_uploads_each_shard_as_a_single_put_not_multipart(
+    tmp_path: Path,
+) -> None:
+    archive_bytes = _make_source_archive_bytes(
+        [(f"{HIGHLEVEL_DIR_NAME}/highlevel/00/1/aaa-0.json", b'{"mood": "happy"}')]
+    )
+    target = ArchiveTarget(
+        url="https://example.com/dumps/acousticbrainz-highlevel-json-20220623-0.tar.zst",
+        dataset_dir_name=HIGHLEVEL_DIR_NAME,
+        level="highlevel",
+    )
+    client = MagicMock()
+
+    def fake_upload_file(local_path: str, bucket: str, key: str, **kwargs: object) -> None:
+        transfer_config = kwargs["Config"]
+        assert transfer_config.multipart_threshold > DEFAULT_ROTATION_BYTES  # type: ignore[attr-defined]
+
+    client.upload_file.side_effect = fake_upload_file
+
+    with patch(
+        "ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3.httpx.stream",
+        return_value=_FakeStreamContext(_FakeStreamResponse(archive_bytes)),
+    ):
+        process_archive(target, tmp_path / "work", client, "dev-bucket", len(archive_bytes))
+
+    assert client.upload_file.call_count == 1
 
 
 def test_stream_archive_bytes_yields_the_full_body_in_one_pass() -> None:

@@ -55,3 +55,13 @@ def test_client_uses_path_style_addressing_and_settings_credentials() -> None:
     assert kwargs["aws_access_key_id"] == "test-access-key"
     assert kwargs["aws_secret_access_key"] == "test-secret-key"
     assert kwargs["config"].s3["addressing_style"] == "path"
+
+
+def test_client_uses_a_generous_read_timeout_for_the_self_hosted_origin() -> None:
+    fake_client = MagicMock()
+
+    with patch("ml.core.artifact_store.boto3.client", return_value=fake_client) as mock_client:
+        upload_model(Path("model.pt"), "runs/model.pt", _settings())
+
+    _, kwargs = mock_client.call_args
+    assert kwargs["config"].read_timeout >= 120

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 import httpx
 import zstandard as zstd
 from boto3.exceptions import S3UploadFailedError
+from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
 from mypy_boto3_s3.client import S3Client
 
@@ -44,6 +45,7 @@ DEFAULT_MAX_WORKERS = 6
 MAX_BACKOFF_SECONDS = 60.0
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 DEFAULT_MAX_RECONNECTS = 50
+UPLOAD_TRANSFER_CONFIG = TransferConfig(multipart_threshold=DEFAULT_ROTATION_BYTES * 2)
 
 ProgressCallback = Callable[[int, int], None]
 
@@ -172,7 +174,7 @@ def process_archive(
         for shard, chunk_path in repack_archive_stream(source_tar, output_dir, rotation_bytes):
             prefix = shard_prefix(target.dataset_dir_name, target.level, shard)
             key = f"{prefix}{stem}-{chunk_path.name}"
-            client.upload_file(str(chunk_path), bucket, key)
+            client.upload_file(str(chunk_path), bucket, key, Config=UPLOAD_TRANSFER_CONFIG)
             chunk_path.unlink()
 
     shutil.rmtree(output_dir, ignore_errors=True)
