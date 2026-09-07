@@ -1,3 +1,4 @@
+import random
 import shutil
 import time
 from collections.abc import Callable
@@ -17,6 +18,7 @@ from ml.serving.acousticbrainz.s3_shards import shard_prefix, unpack_shard
 
 DEFAULT_MAX_CACHED_SHARDS = 16
 DEFAULT_RETRY_ATTEMPTS = 3
+DEFAULT_DOWNLOAD_PACING_SECONDS = 0.2
 _DATASETS = ((HIGHLEVEL_DIR_NAME, "highlevel"), (LOWLEVEL_DIR_NAME, "lowlevel"))
 
 
@@ -32,13 +34,20 @@ def _download_and_unpack_shard_once(
     shard: str,
     destination_dir: Path,
     tmp_dir: Path,
+    sleep: Callable[[float], None] = time.sleep,
+    pacing_seconds: float = DEFAULT_DOWNLOAD_PACING_SECONDS,
+    jitter: Callable[[], float] = lambda: random.uniform(0, DEFAULT_DOWNLOAD_PACING_SECONDS),
 ) -> None:
     prefix = shard_prefix(dataset_dir_name, level, shard)
     response = client.list_objects_v2(Bucket=bucket, Prefix=prefix)
     keys = [key for obj in response.get("Contents", []) if (key := obj.get("Key")) is not None]
 
     tmp_dir.mkdir(parents=True, exist_ok=True)
-    for key in keys:
+    for index, key in enumerate(keys):
+        if index > 0:
+            # A shard can hold hundreds of chunks; some self-hosted S3 servers
+            # rate-limit bursts of requests and answer with 403 rather than 429.
+            sleep(pacing_seconds + jitter())
         chunk_path = tmp_dir / Path(key).name
         client.download_file(bucket, key, str(chunk_path))
         unpack_shard(chunk_path, destination_dir)
@@ -55,11 +64,22 @@ def _download_and_unpack_shard(
     tmp_dir: Path,
     attempts: int,
     sleep: Callable[[float], None],
+    pacing_seconds: float = DEFAULT_DOWNLOAD_PACING_SECONDS,
+    jitter: Callable[[], float] = lambda: random.uniform(0, DEFAULT_DOWNLOAD_PACING_SECONDS),
 ) -> None:
     for attempt in range(1, attempts + 1):
         try:
             _download_and_unpack_shard_once(
-                client, bucket, dataset_dir_name, level, shard, destination_dir, tmp_dir
+                client,
+                bucket,
+                dataset_dir_name,
+                level,
+                shard,
+                destination_dir,
+                tmp_dir,
+                sleep,
+                pacing_seconds,
+                jitter,
             )
         except (ClientError, OSError):
             if attempt == attempts:
@@ -88,6 +108,8 @@ def ensure_shard_cached(
     max_cached_shards: int = DEFAULT_MAX_CACHED_SHARDS,
     attempts: int = DEFAULT_RETRY_ATTEMPTS,
     sleep: Callable[[float], None] = time.sleep,
+    pacing_seconds: float = DEFAULT_DOWNLOAD_PACING_SECONDS,
+    jitter: Callable[[], float] = lambda: random.uniform(0, DEFAULT_DOWNLOAD_PACING_SECONDS),
 ) -> None:
     shard = mbid[:2]
     marker = _shard_marker(cache_dir, shard)
@@ -98,7 +120,17 @@ def ensure_shard_cached(
     for dataset_dir_name, level in _DATASETS:
         destination = cache_dir / dataset_dir_name / level / shard
         _download_and_unpack_shard(
-            client, bucket, dataset_dir_name, level, shard, destination, tmp_dir, attempts, sleep
+            client,
+            bucket,
+            dataset_dir_name,
+            level,
+            shard,
+            destination,
+            tmp_dir,
+            attempts,
+            sleep,
+            pacing_seconds,
+            jitter,
         )
 
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -115,9 +147,20 @@ def get_acousticbrainz_data_from_s3(
     max_cached_shards: int = DEFAULT_MAX_CACHED_SHARDS,
     attempts: int = DEFAULT_RETRY_ATTEMPTS,
     sleep: Callable[[float], None] = time.sleep,
+    pacing_seconds: float = DEFAULT_DOWNLOAD_PACING_SECONDS,
+    jitter: Callable[[], float] = lambda: random.uniform(0, DEFAULT_DOWNLOAD_PACING_SECONDS),
 ) -> AcousticBrainzData:
     ensure_shard_cached(
-        mbid, cache_dir, client, bucket, tmp_dir, max_cached_shards, attempts, sleep
+        mbid,
+        cache_dir,
+        client,
+        bucket,
+        tmp_dir,
+        max_cached_shards,
+        attempts,
+        sleep,
+        pacing_seconds,
+        jitter,
     )
     try:
         return get_acousticbrainz_data(mbid, cache_dir)

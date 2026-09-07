@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from botocore.exceptions import ClientError
@@ -141,6 +141,37 @@ def test_ensure_shard_cached_reraises_after_exhausting_retries(tmp_path: Path) -
             attempts=2,
             sleep=lambda _seconds: None,
         )
+
+
+def test_ensure_shard_cached_paces_downloads_within_a_shard(tmp_path: Path) -> None:
+    client = MagicMock()
+
+    def list_objects_v2(Bucket: str, Prefix: str) -> dict[str, object]:  # noqa: N803
+        if "highlevel" in Prefix:
+            return {"Contents": [{"Key": f"{Prefix}chunk-{i}.tar.zst"} for i in range(3)]}
+        return {"Contents": []}
+
+    def download_file(Bucket: str, Key: str, local_path: str) -> None:  # noqa: N803
+        Path(local_path).write_bytes(b"")
+
+    client.list_objects_v2.side_effect = list_objects_v2
+    client.download_file.side_effect = download_file
+    cache_dir = tmp_path / "cache"
+    sleeps: list[float] = []
+
+    with patch("ml.serving.acousticbrainz.s3_lookup.unpack_shard"):
+        ensure_shard_cached(
+            MBID,
+            cache_dir,
+            client,
+            "bucket",
+            tmp_path / "work",
+            sleep=sleeps.append,
+            pacing_seconds=0.3,
+            jitter=lambda: 0.0,
+        )
+
+    assert sleeps == [0.3, 0.3]
 
 
 def test_get_acousticbrainz_data_from_s3_returns_nulls_when_nothing_uploaded_yet(
