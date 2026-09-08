@@ -1,9 +1,10 @@
-import random
 import shutil
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import httpx
 from botocore.exceptions import ClientError
 from mypy_boto3_s3.client import S3Client
 
@@ -18,12 +19,30 @@ from ml.serving.acousticbrainz.s3_shards import shard_prefix, unpack_shard
 
 DEFAULT_MAX_CACHED_SHARDS = 16
 DEFAULT_RETRY_ATTEMPTS = 3
-DEFAULT_DOWNLOAD_PACING_SECONDS = 0.2
+DEFAULT_DOWNLOAD_WORKERS = 4
+PRESIGNED_URL_EXPIRY_SECONDS = 3600
+DOWNLOAD_TIMEOUT_SECONDS = 30.0
 _DATASETS = ((HIGHLEVEL_DIR_NAME, "highlevel"), (LOWLEVEL_DIR_NAME, "lowlevel"))
 
 
 def _shard_marker(cache_dir: Path, shard: str) -> Path:
     return cache_dir / f".{shard}.synced"
+
+
+def _download_and_unpack_chunk(
+    client: S3Client, bucket: str, key: str, tmp_dir: Path, destination_dir: Path
+) -> None:
+    chunk_path = tmp_dir / Path(key).name
+    url = client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket, "Key": key},
+        ExpiresIn=PRESIGNED_URL_EXPIRY_SECONDS,
+    )
+    response = httpx.get(url, timeout=DOWNLOAD_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    chunk_path.write_bytes(response.content)
+    unpack_shard(chunk_path, destination_dir)
+    chunk_path.unlink()
 
 
 def _download_and_unpack_shard_once(
@@ -34,24 +53,22 @@ def _download_and_unpack_shard_once(
     shard: str,
     destination_dir: Path,
     tmp_dir: Path,
-    sleep: Callable[[float], None] = time.sleep,
-    pacing_seconds: float = DEFAULT_DOWNLOAD_PACING_SECONDS,
-    jitter: Callable[[], float] = lambda: random.uniform(0, DEFAULT_DOWNLOAD_PACING_SECONDS),
+    max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
 ) -> None:
     prefix = shard_prefix(dataset_dir_name, level, shard)
     response = client.list_objects_v2(Bucket=bucket, Prefix=prefix)
     keys = [key for obj in response.get("Contents", []) if (key := obj.get("Key")) is not None]
 
     tmp_dir.mkdir(parents=True, exist_ok=True)
-    for index, key in enumerate(keys):
-        if index > 0:
-            # A shard can hold hundreds of chunks; some self-hosted S3 servers
-            # rate-limit bursts of requests and answer with 403 rather than 429.
-            sleep(pacing_seconds + jitter())
-        chunk_path = tmp_dir / Path(key).name
-        client.download_file(bucket, key, str(chunk_path))
-        unpack_shard(chunk_path, destination_dir)
-        chunk_path.unlink()
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(
+                _download_and_unpack_chunk, client, bucket, key, tmp_dir, destination_dir
+            )
+            for key in keys
+        ]
+        for future in futures:
+            future.result()
 
 
 def _download_and_unpack_shard(
@@ -64,8 +81,7 @@ def _download_and_unpack_shard(
     tmp_dir: Path,
     attempts: int,
     sleep: Callable[[float], None],
-    pacing_seconds: float = DEFAULT_DOWNLOAD_PACING_SECONDS,
-    jitter: Callable[[], float] = lambda: random.uniform(0, DEFAULT_DOWNLOAD_PACING_SECONDS),
+    max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
 ) -> None:
     for attempt in range(1, attempts + 1):
         try:
@@ -77,9 +93,7 @@ def _download_and_unpack_shard(
                 shard,
                 destination_dir,
                 tmp_dir,
-                sleep,
-                pacing_seconds,
-                jitter,
+                max_workers,
             )
         except (ClientError, OSError):
             if attempt == attempts:
@@ -108,8 +122,7 @@ def ensure_shard_cached(
     max_cached_shards: int = DEFAULT_MAX_CACHED_SHARDS,
     attempts: int = DEFAULT_RETRY_ATTEMPTS,
     sleep: Callable[[float], None] = time.sleep,
-    pacing_seconds: float = DEFAULT_DOWNLOAD_PACING_SECONDS,
-    jitter: Callable[[], float] = lambda: random.uniform(0, DEFAULT_DOWNLOAD_PACING_SECONDS),
+    max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
 ) -> None:
     shard = mbid[:2]
     marker = _shard_marker(cache_dir, shard)
@@ -129,8 +142,7 @@ def ensure_shard_cached(
             tmp_dir,
             attempts,
             sleep,
-            pacing_seconds,
-            jitter,
+            max_workers,
         )
 
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -147,8 +159,7 @@ def get_acousticbrainz_data_from_s3(
     max_cached_shards: int = DEFAULT_MAX_CACHED_SHARDS,
     attempts: int = DEFAULT_RETRY_ATTEMPTS,
     sleep: Callable[[float], None] = time.sleep,
-    pacing_seconds: float = DEFAULT_DOWNLOAD_PACING_SECONDS,
-    jitter: Callable[[], float] = lambda: random.uniform(0, DEFAULT_DOWNLOAD_PACING_SECONDS),
+    max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
 ) -> AcousticBrainzData:
     ensure_shard_cached(
         mbid,
@@ -159,8 +170,7 @@ def get_acousticbrainz_data_from_s3(
         max_cached_shards,
         attempts,
         sleep,
-        pacing_seconds,
-        jitter,
+        max_workers,
     )
     try:
         return get_acousticbrainz_data(mbid, cache_dir)
