@@ -34,13 +34,14 @@ def test_get_track_features_returns_none_when_absent(session: Session) -> None:
 
 @pytest.mark.live
 def test_save_embedding_then_get_returns_the_row(session: Session) -> None:
-    save_embedding(session, "track-1", [0.1] * 1024)
+    save_embedding(session, "track-1", [0.1] * 1024, duration_sec=245)
     session.commit()
 
     result = get_track_features(session, "track-1")
 
     assert result is not None
     assert result.track_id == "track-1"
+    assert result.duration_sec == 245
     assert result.mood_label is None
 
 
@@ -67,6 +68,12 @@ def test_save_enrichment_backfills_fields_without_losing_the_embedding(session: 
         musicbrainz_id="mbid-123",
         bpm=128.0,
         key="C major",
+        chords_changes_rate=0.3,
+        danceability=0.8,
+        average_loudness=-6.5,
+        dynamic_complexity=4.2,
+        voice_instrumental="voice",
+        mood_scores={"happy": 0.7, "party": 0.6},
         mood_label="energetic",
         source="acousticbrainz",
     )
@@ -79,6 +86,12 @@ def test_save_enrichment_backfills_fields_without_losing_the_embedding(session: 
     assert result.musicbrainz_id == "mbid-123"
     assert result.bpm == 128.0
     assert result.key == "C major"
+    assert result.chords_changes_rate == 0.3
+    assert result.danceability == 0.8
+    assert result.average_loudness == -6.5
+    assert result.dynamic_complexity == 4.2
+    assert result.voice_instrumental == "voice"
+    assert result.mood_scores == {"happy": 0.7, "party": 0.6}
     assert result.mood_label == "energetic"
     assert result.source == "acousticbrainz"
     assert result.embedding is not None

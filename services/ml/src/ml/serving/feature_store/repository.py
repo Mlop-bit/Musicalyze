@@ -9,10 +9,12 @@ def get_track_features(session: Session, track_id: str) -> TrackFeatures | None:
     return session.get(TrackFeatures, track_id)
 
 
-def save_embedding(session: Session, track_id: str, embedding: list[float]) -> None:
+def save_embedding(
+    session: Session, track_id: str, embedding: list[float], duration_sec: int | None = None
+) -> None:
     statement = (
         insert(TrackFeatures)
-        .values(track_id=track_id, embedding=embedding)
+        .values(track_id=track_id, embedding=embedding, duration_sec=duration_sec)
         .on_conflict_do_nothing(index_elements=[TrackFeatures.track_id])
     )
     session.execute(statement)
@@ -26,6 +28,12 @@ def save_enrichment(
     key: str | None,
     mood_label: str | None,
     source: str,
+    chords_changes_rate: float | None = None,
+    danceability: float | None = None,
+    average_loudness: float | None = None,
+    dynamic_complexity: float | None = None,
+    voice_instrumental: str | None = None,
+    mood_scores: dict[str, float] | None = None,
 ) -> None:
     statement = (
         update(TrackFeatures)
@@ -34,6 +42,12 @@ def save_enrichment(
             musicbrainz_id=musicbrainz_id,
             bpm=bpm,
             key=key,
+            chords_changes_rate=chords_changes_rate,
+            danceability=danceability,
+            average_loudness=average_loudness,
+            dynamic_complexity=dynamic_complexity,
+            voice_instrumental=voice_instrumental,
+            mood_scores=mood_scores,
             mood_label=mood_label,
             source=source,
         )
