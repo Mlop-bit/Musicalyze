@@ -28,7 +28,7 @@ def _settings() -> Settings:
 
 def test_resolve_track_saves_embedding_when_a_preview_is_found() -> None:
     fake_session = MagicMock()
-    deezer_track = {"preview_url": "https://example.com/preview.mp3"}
+    deezer_track = {"preview_url": "https://example.com/preview.mp3", "duration_sec": 245}
 
     with (
         patch(
@@ -45,7 +45,7 @@ def test_resolve_track_saves_embedding_when_a_preview_is_found() -> None:
 
     mock_search.assert_called_once_with(_settings(), isrc="isrc-1", artist="A", track="T")
     mock_save_embedding.assert_called_once_with(
-        fake_session, "track-1", "https://example.com/preview.mp3"
+        fake_session, "track-1", "https://example.com/preview.mp3", duration_sec=245
     )
     mock_save_enrichment.assert_not_called()
 
@@ -73,7 +73,7 @@ def test_resolve_track_does_not_raise_when_deezer_lookup_fails() -> None:
 def test_resolve_track_does_not_raise_when_embedding_save_fails() -> None:
     fake_session = MagicMock()
     settings = _settings()
-    deezer_track = {"preview_url": "https://example.com/preview.mp3"}
+    deezer_track = {"preview_url": "https://example.com/preview.mp3", "duration_sec": 245}
 
     with (
         patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=deezer_track),
@@ -108,7 +108,7 @@ def test_resolve_track_skips_embedding_when_preview_url_is_null() -> None:
     with (
         patch(
             "ml.serving.feature_store.resolution.search_deezer_track",
-            return_value={"preview_url": None},
+            return_value={"preview_url": None, "duration_sec": None},
         ),
         patch(
             "ml.serving.feature_store.resolution.save_track_embedding_from_preview"

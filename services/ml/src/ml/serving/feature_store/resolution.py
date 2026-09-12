@@ -22,7 +22,12 @@ def resolve_track(
     try:
         deezer_track = search_deezer_track(settings, isrc=isrc, artist=artist, track=title)
         if deezer_track is not None and deezer_track["preview_url"] is not None:
-            save_track_embedding_from_preview(session, track_id, deezer_track["preview_url"])
+            save_track_embedding_from_preview(
+                session,
+                track_id,
+                deezer_track["preview_url"],
+                duration_sec=deezer_track["duration_sec"],
+            )
     except Exception:
         logger.warning(
             "Deezer preview embedding failed for track_id=%s, continuing without it",
