@@ -26,14 +26,14 @@ def save_enrichment(
     musicbrainz_id: str | None,
     bpm: float | None,
     key: str | None,
+    chords_changes_rate: float | None,
+    danceability: float | None,
+    average_loudness: float | None,
+    dynamic_complexity: float | None,
+    voice_instrumental: str | None,
+    mood_scores: dict[str, float] | None,
     mood_label: str | None,
     source: str,
-    chords_changes_rate: float | None = None,
-    danceability: float | None = None,
-    average_loudness: float | None = None,
-    dynamic_complexity: float | None = None,
-    voice_instrumental: str | None = None,
-    mood_scores: dict[str, float] | None = None,
 ) -> None:
     statement = (
         update(TrackFeatures)
