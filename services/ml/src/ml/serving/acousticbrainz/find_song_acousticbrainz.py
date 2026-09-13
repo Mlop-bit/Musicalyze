@@ -35,7 +35,7 @@ def get_acousticbrainz_data(mbid: str, extract_dir: Path) -> AcousticBrainzData:
 
     if not highlevel_dir.is_dir() and not lowlevel_dir.is_dir():
         raise AcousticBrainzDumpNotExtractedError(
-            f"neither {highlevel_dir} nor {lowlevel_dir} exist — "
+            f"neither {highlevel_dir} nor {lowlevel_dir} exist - "
             "run download_acousticbrainz.py before looking up tracks"
         )
 

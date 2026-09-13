@@ -42,5 +42,12 @@ https://github.com/Mlop-bit/AIProject.git
 | `MUSICALYZE_KV_NAMESPACE_ID` |             |
 | `MUSICALYZE_KV_API_TOKEN`    |             |
 
+3. Fill in the `.env` file in the project's `apps/web/` folder (a placeholder already exists there - replace the fake value).
+4. Please enter the following variable :
+
+| Variable                      | Description |
+| ------------------------------ | ----------- |
+| `MUSICALYZE_GITHUB_TOKEN`      | Classic GitHub PAT with the `repo` scope, generated from your own account, used to read commit history for the `/changelog` page. Fine-grained PATs only work here if you're an org member with fine-grained access enabled; collaborators on another user's personal repo must use a classic token. |
+
 ## Project launch
 ??

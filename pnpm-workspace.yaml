@@ -1,0 +1,53 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - 'semver@6.3.1'
+  - 'undici-types@6.21.0'
+  - 'eslint-import-resolver-typescript@3.10.1'
+  - 'prisma@7.10.0'
+  - '@prisma/client@7.10.0'
+minimumReleaseAgeExclude:
+  - '@base-ui/react@1.8.0'
+  - '@base-ui/utils@0.4.0'
+  - '@typescript-eslint/eslint-plugin@8.70.0'
+  - '@typescript-eslint/parser@8.70.0'
+  - '@typescript-eslint/project-service@8.70.0'
+  - '@typescript-eslint/scope-manager@8.70.0'
+  - '@typescript-eslint/tsconfig-utils@8.70.0'
+  - '@typescript-eslint/type-utils@8.70.0'
+  - '@typescript-eslint/types@8.70.0'
+  - '@typescript-eslint/typescript-estree@8.70.0'
+  - '@typescript-eslint/utils@8.70.0'
+  - '@typescript-eslint/visitor-keys@8.70.0'
+  - '@vgpu/adapter-mock@0.4.1'
+  - '@vgpu/adapter-node@0.4.1'
+  - '@vgpu/core@0.4.1'
+  - '@vgpu/wgsl-std@0.4.1'
+  - '@vgpu/wgsl@0.4.1'
+  - 'bidi-js@1.1.0'
+  - 'browserslist@4.28.9'
+  - 'cn@0.2.6'
+  - 'electron-to-chromium@1.5.423'
+  - 'entities@8.1.0'
+  - 'hono@4.13.7'
+  - 'ignore@7.0.9'
+  - 'jose@6.2.12'
+  - 'lucide-react@1.43.0'
+  - 'shadcn@4.21.0'
+  - 'systeminformation@5.33.9'
+  - 'tldts-core@7.4.12'
+  - 'tldts@7.4.12'
+  - 'typescript-eslint@8.70.0'
+  - 'undici@7.29.1'
+  - 'undici@8.10.2'
+  - 'vgpu@0.4.1'
+allowBuilds:
+  '@prisma/engines': true
+  '@vgpu/adapter-node': false
+  prisma: true
+  sharp: false
+  unrs-resolver: true
+  webgpu: false
