@@ -2,8 +2,8 @@ import torch
 from torch.utils.data import Dataset
 
 from ml.core.config import Settings
-from ml.serving.jamendo.download_jamendo_from_s3 import download_jamendo_from_s3
-from ml.serving.jamendo.moods_to_vector import moods_to_vector
+from ml.serving.jamendo.processing import moods_to_vector
+from ml.serving.jamendo.s3_storage import download_jamendo_from_s3
 from ml.serving.jamendo.track import Track
 
 
