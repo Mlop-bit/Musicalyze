@@ -1,20 +1,20 @@
-import tempfile
-from pathlib import Path
+import io
 
 import torch
+from mypy_boto3_s3 import S3Client
 
-from ml.core.artifact_store import upload_model
 from ml.core.config import Settings
 
 
-def upload_jamendo_to_s3(track_id: str, embedding: torch.Tensor, settings: Settings) -> None:
-    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp_file:
-        tmp_path = Path(tmp_file.name)
-        torch.save(embedding, tmp_path)
+def upload_jamendo_to_s3(
+    track_id: str, embedding: torch.Tensor, client: S3Client, settings: Settings
+) -> None:
+    buffer = io.BytesIO()
+    torch.save(embedding, buffer)
+    data = buffer.getvalue()
 
-    try:
-        s3_key = f"jamendo/embeddings/{track_id}.pt"
-        upload_model(tmp_path, s3_key, settings)
-    finally:
-        if tmp_path.exists():
-            tmp_path.unlink()
+    client.put_object(
+        Bucket=settings.s3_bucket,
+        Key=f"jamendo/embeddings/{track_id}.pt",
+        Body=data,
+    )
