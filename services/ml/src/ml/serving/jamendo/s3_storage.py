@@ -1,11 +1,12 @@
 import io
 import tempfile
 from pathlib import Path
+
 import torch
 from mypy_boto3_s3 import S3Client
 
-from ml.core.config import Settings
 from ml.core.artifact_store import download_model
+from ml.core.config import Settings
 
 
 def upload_jamendo_to_s3(
