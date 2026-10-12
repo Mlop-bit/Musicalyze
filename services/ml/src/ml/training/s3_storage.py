@@ -7,9 +7,7 @@ from ml.core.artifact_store import download_model, upload_model
 from ml.core.config import Settings
 
 
-def upload_jamendo_to_s3(
-    track_id: str, embedding: torch.Tensor, settings: Settings
-) -> None:
+def upload_jamendo_to_s3(track_id: str, embedding: torch.Tensor, settings: Settings) -> None:
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp_file:
         tmp_path = Path(tmp_file.name)
         torch.save(embedding, tmp_path)
