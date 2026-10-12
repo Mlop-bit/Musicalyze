@@ -3,10 +3,10 @@ from pathlib import Path
 
 from ml.core.config import Settings
 from ml.core.muq import load_model
-from ml.serving.jamendo.jamendo_dataset import JamendoDataset
-from ml.serving.jamendo.processing import extract_track_embedding
-from ml.serving.jamendo.s3_storage import upload_jamendo_to_s3
-from ml.serving.jamendo.track import Track
+from ml.training.jamendo_dataset import JamendoDataset
+from ml.training.processing import extract_track_embedding
+from ml.training.s3_storage import upload_jamendo_to_s3
+from ml.training.track import Track
 
 
 def load_jamendo(

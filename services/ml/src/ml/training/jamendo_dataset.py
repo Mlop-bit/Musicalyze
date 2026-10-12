@@ -2,9 +2,9 @@ import torch
 from torch.utils.data import Dataset
 
 from ml.core.config import Settings
-from ml.serving.jamendo.processing import moods_to_vector
-from ml.serving.jamendo.s3_storage import download_jamendo_from_s3
-from ml.serving.jamendo.track import Track
+from ml.training.processing import moods_to_vector
+from ml.training.s3_storage import download_jamendo_from_s3
+from ml.training.track import Track
 
 
 class JamendoDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
