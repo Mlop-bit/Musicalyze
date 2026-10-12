@@ -1,7 +1,6 @@
 import csv
 from pathlib import Path
 
-from ml.core.artifact_store import s3_client
 from ml.core.config import Settings
 from ml.core.muq import load_model
 from ml.serving.jamendo.jamendo_dataset import JamendoDataset
@@ -16,7 +15,6 @@ def load_jamendo(
     moodtheme_file_path: str,
     train_files_path: str,
 ) -> JamendoDataset:
-    # Load dataset
     tracks_moods = load_autotagging_moodtheme(moodtheme_file_path)
     mood_to_index = create_mood_to_index(tracks_moods)
     train_tracks = load_autotagging_moodtheme(moodtheme_train_file_path)
@@ -66,7 +64,6 @@ def load_jamendo_embeddings(
     train_files_path: str, jamendo_dataset: JamendoDataset, settings: Settings
 ) -> None:
     model = load_model()
-    client = s3_client(settings)
 
     for track in jamendo_dataset.tracks:
         audio_path = Path(train_files_path) / track["path"].replace(
@@ -75,4 +72,4 @@ def load_jamendo_embeddings(
         )
 
         embedding = extract_track_embedding(str(audio_path), model)
-        upload_jamendo_to_s3(track["track_id"], embedding, client, settings)
+        upload_jamendo_to_s3(track["track_id"], embedding, settings)
