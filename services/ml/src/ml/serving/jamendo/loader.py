@@ -28,19 +28,25 @@ def load_jamendo(
 def load_autotagging_moodtheme(input_file: str) -> list[Track]:
     tracks: list[Track] = []
 
-    with open(input_file, encoding="utf-8") as file:
-        reader = csv.DictReader(file, delimiter="\t")
+    with open(input_file, encoding="utf-8", newline="") as file:
+        reader = csv.reader(file, delimiter="\t")
+
+        header = next(reader, None)
+        if header is None:
+            return tracks
 
         for row in reader:
-            tags = row["TAGS"].split("\t")
+            tags = row[5:]
 
             mood_tags = [
-                tag.replace("mood/theme---", "") for tag in tags if tag.startswith("mood/theme---")
+                tag.replace("mood/theme---", "", 1)
+                for tag in tags
+                if tag.startswith("mood/theme---")
             ]
 
             track: Track = {
-                "track_id": row["TRACK_ID"],
-                "path": row["PATH"],
+                "track_id": row[0],
+                "path": row[1],
                 "moods": mood_tags,
             }
 
