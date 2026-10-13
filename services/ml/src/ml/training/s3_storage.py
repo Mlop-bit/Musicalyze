@@ -7,21 +7,25 @@ from ml.core.artifact_store import download_model, upload_model
 from ml.core.config import Settings
 
 
-def upload_jamendo_to_s3(track_id: str, embedding: torch.Tensor, settings: Settings) -> None:
+def upload_jamendo_to_s3(
+    track_id: str, split_name: str, payload: dict[str, torch.Tensor | str], settings: Settings
+) -> None:
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp_file:
         tmp_path = Path(tmp_file.name)
-        torch.save(embedding, tmp_path)
+        torch.save(payload, tmp_path)
 
     try:
-        s3_key = f"jamendo/embeddings/{track_id}.pt"
+        s3_key = f"jamendo/{split_name}/{track_id}.pt"
         upload_model(tmp_path, s3_key, settings)
     finally:
         if tmp_path.exists():
             tmp_path.unlink()
 
 
-def download_jamendo_from_s3(track_id: str, settings: Settings) -> torch.Tensor:
-    s3_key = f"jamendo/embeddings/{track_id}.pt"
+def download_jamendo_from_s3(
+    track_id: str, split_name: str, settings: Settings
+) -> dict[str, torch.Tensor | str]:
+    s3_key = f"jamendo/{split_name}/{track_id}.pt"
 
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp_file:
         file_path = Path(tmp_file.name)
@@ -29,12 +33,12 @@ def download_jamendo_from_s3(track_id: str, settings: Settings) -> torch.Tensor:
     try:
         download_model(s3_key, file_path, settings)
 
-        embedding = torch.load(
+        payload = torch.load(
             file_path,
             weights_only=True,
         )
 
-        return embedding
+        return payload
 
     finally:
         if file_path.exists():
