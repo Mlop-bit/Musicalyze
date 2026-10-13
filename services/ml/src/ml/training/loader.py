@@ -6,7 +6,7 @@ import torch
 
 from ml.core.config import Settings
 from ml.core.muq import MuQ, load_model
-from ml.training.processing import extract_track_embedding, moods_to_vector
+from ml.training.processing import create_mood_to_index, extract_track_embedding, moods_to_vector
 from ml.training.s3_storage import upload_jamendo_to_s3
 from ml.training.track import Track
 
@@ -113,14 +113,3 @@ def load_autotagging_moodtheme(input_file: str) -> list[Track]:
             tracks.append(track)
 
     return tracks
-
-
-def create_mood_to_index(tracks: list[Track]) -> dict[str, int]:
-    all_moods: set[str] = set()
-
-    for track in tracks:
-        all_moods.update(track["moods"])
-
-    mood_to_index = {mood: index for index, mood in enumerate(sorted(all_moods))}
-
-    return mood_to_index
