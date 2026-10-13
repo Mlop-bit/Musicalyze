@@ -2,6 +2,8 @@ import csv
 import json
 from pathlib import Path
 
+import torch
+
 from ml.core.config import Settings
 from ml.core.muq import MuQ, load_model
 from ml.training.processing import extract_track_embedding, moods_to_vector
@@ -43,6 +45,12 @@ def process_split(
     tracks = load_autotagging_moodtheme(tsv_path)
     audio_path_base = Path(audio_dir)
 
+    batch_track_ids: list[str] = []
+    batch_embeddings: list[torch.Tensor] = []
+    batch_targets: list[torch.Tensor] = []
+    batch_index = 0
+    batch_size = 32
+
     for track in tracks:
         audio_file_path = audio_path_base / track["path"].replace(".mp3", ".low.mp3")
         if not audio_file_path.exists():
@@ -51,13 +59,30 @@ def process_split(
         embedding = extract_track_embedding(str(audio_file_path), model)
         target = moods_to_vector(track["moods"], vocabulary)
 
-        payload = {
-            "track_id": track["track_id"],
-            "embedding": embedding.squeeze(0).cpu(),
-            "target": target,
-        }
+        batch_track_ids.append(track["track_id"])
+        batch_embeddings.append(embedding.squeeze(0).cpu())
+        batch_targets.append(target)
 
-        upload_jamendo_to_s3(track["track_id"], split_name, payload, settings)
+        if len(batch_track_ids) == batch_size:
+            batch_payload = {
+                "track_ids": batch_track_ids,
+                "embeddings": torch.stack(batch_embeddings),
+                "targets": torch.stack(batch_targets),
+            }
+            upload_jamendo_to_s3(f"batch_{batch_index:04d}", split_name, batch_payload, settings)
+
+            batch_track_ids = []
+            batch_embeddings = []
+            batch_targets = []
+            batch_index += 1
+
+    if batch_track_ids:
+        batch_payload = {
+            "track_ids": batch_track_ids,
+            "embeddings": torch.stack(batch_embeddings),
+            "targets": torch.stack(batch_targets),
+        }
+        upload_jamendo_to_s3(f"batch_{batch_index:04d}", split_name, batch_payload, settings)
 
 
 def load_autotagging_moodtheme(input_file: str) -> list[Track]:

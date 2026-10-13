@@ -8,14 +8,17 @@ from ml.core.config import Settings
 
 
 def upload_jamendo_to_s3(
-    track_id: str, split_name: str, payload: dict[str, torch.Tensor | str], settings: Settings
+    batch_name: str,
+    split_name: str,
+    payload: dict[str, torch.Tensor | list[str]],
+    settings: Settings,
 ) -> None:
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp_file:
         tmp_path = Path(tmp_file.name)
         torch.save(payload, tmp_path)
 
     try:
-        s3_key = f"jamendo/{split_name}/{track_id}.pt"
+        s3_key = f"jamendo/{split_name}/{batch_name}.pt"
         upload_model(tmp_path, s3_key, settings)
     finally:
         if tmp_path.exists():
@@ -23,9 +26,9 @@ def upload_jamendo_to_s3(
 
 
 def download_jamendo_from_s3(
-    track_id: str, split_name: str, settings: Settings
-) -> dict[str, torch.Tensor | str]:
-    s3_key = f"jamendo/{split_name}/{track_id}.pt"
+    batch_name: str, split_name: str, settings: Settings
+) -> dict[str, torch.Tensor | list[str]]:
+    s3_key = f"jamendo/{split_name}/{batch_name}.pt"
 
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp_file:
         file_path = Path(tmp_file.name)
