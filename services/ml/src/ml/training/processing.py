@@ -4,8 +4,20 @@ import torch
 from ml.core.muq import MuQ, embed
 
 
-def extract_track_embedding(audio_path_or_url: str, model: MuQ) -> torch.Tensor:
-    audio_np, _sample_rate = librosa.load(audio_path_or_url, sr=24000, mono=True, duration=30)
+def extract_track_embedding(audio_path: str, model: MuQ) -> torch.Tensor:
+    total_duration = librosa.get_duration(path=audio_path)
+    target_duration = 30.0
+    offset = (total_duration - target_duration) / 2.0
+
+    if total_duration < target_duration:
+        raise ValueError(
+            f"Audio file '{audio_path}' is too short ({total_duration:.2f}s). "
+            f"Minimum required duration is {target_duration}s."
+        )
+
+    audio_np, _sample_rate = librosa.load(
+        audio_path, sr=24000, mono=True, offset=offset, duration=30
+    )
     waveform = torch.tensor(audio_np, dtype=torch.float32).unsqueeze(0)
 
     return embed(model, waveform)
