@@ -2,33 +2,25 @@ import torch
 from torch.utils.data import Dataset
 
 from ml.core.config import Settings
-from ml.training.processing import moods_to_vector
-from ml.training.s3_storage import download_jamendo_from_s3
-from ml.training.track import Track
 
 
 class JamendoDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
     def __init__(
-        self, tracks: list[Track], mood_to_index: dict[str, int], settings: Settings
+        self, track_records: list[dict[str, torch.Tensor | str]], settings: Settings
     ) -> None:
-        self.tracks = tracks
-        self.mood_to_index = mood_to_index
+        self.track_records = track_records
         self.settings = settings
 
     def __len__(self) -> int:
-        return len(self.tracks)
+        return len(self.track_records)
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
-        track = self.tracks[index]
+        record = self.track_records[index]
 
-        embedding = download_jamendo_from_s3(
-            track["track_id"],
-            self.settings,
-        )
+        embedding = record["embedding"]
+        target = record["target"]
 
-        target = moods_to_vector(
-            track["moods"],
-            self.mood_to_index,
-        )
+        assert isinstance(embedding, torch.Tensor)
+        assert isinstance(target, torch.Tensor)
 
         return embedding, target
