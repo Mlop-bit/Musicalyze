@@ -11,11 +11,12 @@ def extract_track_embedding(audio_path_or_url: str, model: MuQ) -> torch.Tensor:
     return embed(model, waveform)
 
 
-def moods_to_vector(moods: list[str], mood_to_index: dict[str, int]) -> torch.Tensor:
-    target = torch.zeros(len(mood_to_index))
+def moods_to_vector(moods: list[str], vocabulary: dict[str, int]) -> torch.Tensor:
+    target = torch.zeros(len(vocabulary))
 
     for mood in moods:
-        index = mood_to_index[mood]
-        target[index] = 1.0
+        if mood in vocabulary:
+            index = vocabulary[mood]
+            target[index] = 1.0
 
     return target
