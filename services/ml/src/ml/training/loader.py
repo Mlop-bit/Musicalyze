@@ -8,7 +8,7 @@ from ml.core.artifact_store import s3_client
 from ml.core.config import Settings
 from ml.core.muq import MuQ, load_model
 from ml.training.processing import create_mood_to_index, extract_track_embedding, moods_to_vector
-from ml.training.s3_storage import upload_jamendo_to_s3
+from ml.training.s3_storage import upload_jamendo_to_s3, upload_vocabulary_to_s3
 from ml.training.track import Track
 
 
@@ -27,6 +27,7 @@ def load_jamendo(
     vocabulary = create_mood_to_index(tracks_moods)
     with open(output_path / "vocabulary.json", "w", encoding="utf-8") as f:
         json.dump(vocabulary, f, indent=2)
+    upload_vocabulary_to_s3(vocabulary, settings)
 
     model = load_model()
 
