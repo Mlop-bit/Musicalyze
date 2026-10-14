@@ -44,7 +44,10 @@ def get_existing_batch_from_s3(split_name: str, settings: Settings) -> set[int]:
     paginator = client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=settings.s3_bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
-            filename = obj["Key"].split("/")[-1]
+            key = obj.get("Key")
+            if not key:
+                continue
+            filename = key.split("/")[-1]
             if filename.startswith("batch_") and filename.endswith(".pt"):
                 try:
                     idx = int(filename[6:-3])
@@ -76,7 +79,7 @@ def process_split(
     while batch_index in completed_batch_indices:
         batch_index += 1
     if batch_index > 0:
-        tracks = tracks[batch_index * batch_size:]
+        tracks = tracks[batch_index * batch_size :]
 
     for track in tracks:
         audio_file_path = audio_path_base / track["path"].replace(".mp3", ".low.mp3")

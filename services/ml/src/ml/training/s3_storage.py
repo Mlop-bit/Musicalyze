@@ -50,7 +50,9 @@ def download_jamendo_from_s3(
 
 
 def upload_vocabulary_to_s3(vocabulary: dict[str, int], settings: Settings) -> None:
-    with tempfile.NamedTemporaryFile(suffix=".json", mode="w", encoding="utf-8", delete=False) as tmp_file:
+    with tempfile.NamedTemporaryFile(
+        suffix=".json", mode="w", encoding="utf-8", delete=False
+    ) as tmp_file:
         json.dump(vocabulary, tmp_file, indent=2)
         tmp_path = Path(tmp_file.name)
 
