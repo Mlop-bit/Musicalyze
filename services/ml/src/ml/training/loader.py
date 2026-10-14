@@ -4,11 +4,14 @@ from pathlib import Path
 
 import torch
 
-from ml.core.artifact_store import s3_client
 from ml.core.config import Settings
 from ml.core.muq import MuQ, load_model
 from ml.training.processing import create_mood_to_index, extract_track_embedding, moods_to_vector
-from ml.training.s3_storage import upload_jamendo_to_s3, upload_vocabulary_to_s3
+from ml.training.s3_storage import (
+    get_existing_batch_from_s3,
+    upload_jamendo_to_s3,
+    upload_vocabulary_to_s3,
+)
 from ml.training.track import Track
 
 
@@ -34,28 +37,6 @@ def load_jamendo(
     process_split(train_file_path, "train", audio_dir, vocabulary, model, settings)
     process_split(valid_file_path, "valid", audio_dir, vocabulary, model, settings)
     process_split(test_file_path, "test", audio_dir, vocabulary, model, settings)
-
-
-def get_existing_batch_from_s3(split_name: str, settings: Settings) -> set[int]:
-    completed_indices: set[int] = set()
-    client = s3_client(settings)
-    prefix = f"jamendo/{split_name}/"
-
-    paginator = client.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=settings.s3_bucket, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            key = obj.get("Key")
-            if not key:
-                continue
-            filename = key.split("/")[-1]
-            if filename.startswith("batch_") and filename.endswith(".pt"):
-                try:
-                    idx = int(filename[6:-3])
-                    completed_indices.add(idx)
-                except ValueError:
-                    continue
-
-    return completed_indices
 
 
 def process_split(
