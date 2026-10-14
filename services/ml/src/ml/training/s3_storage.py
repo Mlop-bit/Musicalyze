@@ -11,7 +11,7 @@ from ml.core.config import Settings
 def upload_jamendo_to_s3(
     batch_name: str,
     split_name: str,
-    payload: dict[str, torch.Tensor | list[str]],
+    payload: dict[str, torch.Tensor],
     settings: Settings,
 ) -> None:
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp_file:
@@ -28,7 +28,7 @@ def upload_jamendo_to_s3(
 
 def download_jamendo_from_s3(
     batch_name: str, split_name: str, settings: Settings
-) -> dict[str, torch.Tensor | list[str]]:
+) -> dict[str, torch.Tensor]:
     s3_key = f"jamendo/{split_name}/{batch_name}.pt"
 
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp_file:
