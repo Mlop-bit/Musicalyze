@@ -98,3 +98,19 @@ def download_vocabulary_from_s3(settings: Settings) -> dict[str, int]:
     finally:
         if file_path.exists():
             file_path.unlink()
+
+
+def load_split_data_from_s3(
+    split_name: str, settings: Settings
+) -> tuple[torch.Tensor, torch.Tensor]:
+    batch_indices = sorted(list(get_existing_batch_from_s3(split_name, settings)))
+    all_embeddings: list[torch.Tensor] = []
+    all_targets: list[torch.Tensor] = []
+
+    for idx in batch_indices:
+        batch_name = f"batch_{idx:04d}"
+        payload = download_jamendo_from_s3(batch_name, split_name, settings)
+        all_embeddings.append(payload["embeddings"])
+        all_targets.append(payload["targets"])
+
+    return torch.cat(all_embeddings, dim=0), torch.cat(all_targets, dim=0)
