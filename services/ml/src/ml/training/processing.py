@@ -1,5 +1,3 @@
-import json
-import os
 from pathlib import Path
 
 import librosa
@@ -8,7 +6,7 @@ import torch.nn.functional as f
 
 from ml.core.config import Settings
 from ml.core.muq import MuQ, embed
-from ml.training.s3_storage import download_vocabulary_from_s3, load_split_data_from_s3
+from ml.training.s3_storage import download_artifact_from_s3, load_split_data_from_s3
 from ml.training.track import Track
 
 
@@ -67,19 +65,17 @@ def ensure_data_downloaded(settings: Settings, output_dir: str) -> None:
     valid_path = out_path / "valid_split.pt"
     test_path = out_path / "test_split.pt"
 
-    if not os.path.exists(vocab_path):
-        vocabulary = download_vocabulary_from_s3(settings)
-        with open(vocab_path, "w", encoding="utf-8") as f:
-            json.dump(vocabulary, f, ensure_ascii=False, indent=4)
+    if not vocab_path.exists():
+        download_artifact_from_s3("vocabulary.json", output_dir, settings)
 
-    if not os.path.exists(train_path):
+    if not train_path.exists():
         train_embeddings, train_targets = load_split_data_from_s3("train", settings)
         torch.save((train_embeddings, train_targets), train_path)
 
-    if not os.path.exists(valid_path):
+    if not valid_path.exists():
         valid_embeddings, valid_targets = load_split_data_from_s3("valid", settings)
         torch.save((valid_embeddings, valid_targets), valid_path)
 
-    if not os.path.exists(test_path):
+    if not test_path.exists():
         test_embeddings, test_targets = load_split_data_from_s3("test", settings)
         torch.save((test_embeddings, test_targets), test_path)

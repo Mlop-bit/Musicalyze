@@ -1,4 +1,3 @@
-import json
 import tempfile
 from pathlib import Path
 
@@ -71,33 +70,27 @@ def get_existing_batch_from_s3(split_name: str, settings: Settings) -> set[int]:
     return completed_indices
 
 
-def upload_vocabulary_to_s3(vocabulary: dict[str, int], settings: Settings) -> None:
-    with tempfile.NamedTemporaryFile(
-        suffix=".json", mode="w", encoding="utf-8", delete=False
-    ) as tmp_file:
-        json.dump(vocabulary, tmp_file, indent=2)
-        tmp_path = Path(tmp_file.name)
+def upload_artifact_to_s3(file_name: str, output_dir: str, settings: Settings) -> None:
+    path = Path(output_dir) / file_name
+    if not path.exists():
+        raise FileNotFoundError(f"File not found for upload: {path}")
 
     try:
-        s3_key = "jamendo/vocabulary.json"
-        upload_model(tmp_path, s3_key, settings)
-    finally:
-        if tmp_path.exists():
-            tmp_path.unlink()
+        s3_key = f"jamendo/{file_name}"
+        upload_model(path, s3_key, settings)
+    except Exception as e:
+        raise RuntimeError(f"Failed to upload artifact '{file_name}' to S3: {e}") from e
 
 
-def download_vocabulary_from_s3(settings: Settings) -> dict[str, int]:
-    s3_key = "jamendo/vocabulary.json"
-    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp_file:
-        file_path = Path(tmp_file.name)
+def download_artifact_from_s3(file_name: str, output_dir: str, settings: Settings) -> None:
+    out_path = Path(output_dir) / file_name
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    s3_key = f"jamendo/{file_name}"
 
     try:
-        download_model(s3_key, file_path, settings)
-        with open(file_path, encoding="utf-8") as f:
-            return json.load(f)
-    finally:
-        if file_path.exists():
-            file_path.unlink()
+        download_model(s3_key, out_path, settings)
+    except Exception as e:
+        raise RuntimeError(f"Failed to download artifact '{file_name}' from S3: {e}") from e
 
 
 def load_split_data_from_s3(

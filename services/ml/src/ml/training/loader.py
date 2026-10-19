@@ -9,8 +9,8 @@ from ml.core.muq import MuQ, load_model
 from ml.training.processing import create_mood_to_index, extract_track_embedding, moods_to_vector
 from ml.training.s3_storage import (
     get_existing_batch_from_s3,
+    upload_artifact_to_s3,
     upload_jamendo_to_s3,
-    upload_vocabulary_to_s3,
 )
 from ml.training.track import Track
 
@@ -32,7 +32,7 @@ def load_jamendo(
     output_path.mkdir(parents=True, exist_ok=True)
     with open(output_path / "vocabulary.json", "w", encoding="utf-8") as f:
         json.dump(vocabulary, f, indent=2)
-    upload_vocabulary_to_s3(vocabulary, settings)
+    upload_artifact_to_s3("vocabulary.json", output_dir, settings)
 
     model = load_model()
 
@@ -86,6 +86,7 @@ def process_split(
 
     if dropped_count > 0:
         print(f"[{split_name}] Completed with {dropped_count} missing audio tracks dropped.")
+
 
 def load_autotagging_moodtheme(input_file: str) -> list[Track]:
     tracks: list[Track] = []
