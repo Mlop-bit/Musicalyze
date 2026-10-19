@@ -3,6 +3,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from ml.core.config import Settings
+from ml.serving.entity_resolution.resolver import resolve_musicbrainz_id
 from ml.serving.feature_store.embedding import save_track_embedding_from_preview
 from ml.serving.feature_store.enrichment import save_acousticbrainz_enrichment
 from ml.serving.preview.deezer import search_deezer_track
@@ -35,6 +36,9 @@ def resolve_track(
             exc_info=True,
         )
 
+    if musicbrainz_id is None:
+        musicbrainz_id = _find_musicbrainz_id(settings, track_id, isrc, artist, title)
+
     if musicbrainz_id is not None:
         try:
             save_acousticbrainz_enrichment(session, track_id, musicbrainz_id, settings)
@@ -46,3 +50,21 @@ def resolve_track(
                 musicbrainz_id,
                 exc_info=True,
             )
+
+
+def _find_musicbrainz_id(
+    settings: Settings,
+    track_id: str,
+    isrc: str | None,
+    artist: str | None,
+    title: str | None,
+) -> str | None:
+    try:
+        return resolve_musicbrainz_id(settings, isrc=isrc, artist=artist, title=title)
+    except Exception:
+        logger.warning(
+            "MusicBrainz lookup failed for track_id=%s, continuing without it",
+            track_id,
+            exc_info=True,
+        )
+        return None

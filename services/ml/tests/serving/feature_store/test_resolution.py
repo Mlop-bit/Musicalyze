@@ -40,6 +40,7 @@ def test_resolve_track_saves_embedding_when_a_preview_is_found() -> None:
         patch(
             "ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"
         ) as mock_save_enrichment,
+        patch("ml.serving.feature_store.resolution.resolve_musicbrainz_id", return_value=None),
     ):
         resolve_track(fake_session, _settings(), "track-1", isrc="isrc-1", artist="A", title="T")
 
@@ -162,5 +163,68 @@ def test_resolve_track_skips_acousticbrainz_enrichment_without_a_mbid() -> None:
         ) as mock_save_enrichment,
     ):
         resolve_track(fake_session, _settings(), "track-1")
+
+    mock_save_enrichment.assert_not_called()
+
+
+def test_resolve_track_looks_up_the_musicbrainz_id_when_none_is_given() -> None:
+    fake_session = MagicMock()
+    settings = _settings()
+
+    with (
+        patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=None),
+        patch(
+            "ml.serving.feature_store.resolution.resolve_musicbrainz_id", return_value="mbid-1"
+        ) as mock_resolve,
+        patch(
+            "ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"
+        ) as mock_save_enrichment,
+    ):
+        resolve_track(
+            fake_session, settings, "track-1", isrc="isrc-1", artist="Daft Punk", title="Get Lucky"
+        )
+
+    mock_resolve.assert_called_once_with(
+        settings, isrc="isrc-1", artist="Daft Punk", title="Get Lucky"
+    )
+    mock_save_enrichment.assert_called_once_with(fake_session, "track-1", "mbid-1", settings)
+
+
+def test_resolve_track_does_not_look_up_the_musicbrainz_id_when_one_is_given() -> None:
+    with (
+        patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=None),
+        patch("ml.serving.feature_store.resolution.resolve_musicbrainz_id") as mock_resolve,
+        patch("ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"),
+    ):
+        resolve_track(MagicMock(), _settings(), "track-1", musicbrainz_id="mbid-1")
+
+    mock_resolve.assert_not_called()
+
+
+def test_resolve_track_skips_enrichment_when_the_musicbrainz_id_is_unresolved() -> None:
+    with (
+        patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=None),
+        patch("ml.serving.feature_store.resolution.resolve_musicbrainz_id", return_value=None),
+        patch(
+            "ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"
+        ) as mock_save_enrichment,
+    ):
+        resolve_track(MagicMock(), _settings(), "track-1", artist="A", title="T")
+
+    mock_save_enrichment.assert_not_called()
+
+
+def test_resolve_track_does_not_raise_when_the_musicbrainz_lookup_fails() -> None:
+    with (
+        patch("ml.serving.feature_store.resolution.search_deezer_track", return_value=None),
+        patch(
+            "ml.serving.feature_store.resolution.resolve_musicbrainz_id",
+            side_effect=RuntimeError("musicbrainz unavailable"),
+        ),
+        patch(
+            "ml.serving.feature_store.resolution.save_acousticbrainz_enrichment"
+        ) as mock_save_enrichment,
+    ):
+        resolve_track(MagicMock(), _settings(), "track-1", artist="A", title="T")
 
     mock_save_enrichment.assert_not_called()
