@@ -1,8 +1,14 @@
+import json
+import os
+from pathlib import Path
+
 import librosa
 import torch
 import torch.nn.functional as f
 
+from ml.core.config import Settings
 from ml.core.muq import MuQ, embed
+from ml.training.s3_storage import download_vocabulary_from_s3, load_split_data_from_s3
 from ml.training.track import Track
 
 
@@ -50,3 +56,30 @@ def create_mood_to_index(tracks: list[Track]) -> dict[str, int]:
     mood_to_index = {mood: index for index, mood in enumerate(sorted(all_moods))}
 
     return mood_to_index
+
+
+def ensure_data_downloaded(settings: Settings, output_dir: str) -> None:
+    out_path = Path(output_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    vocab_path = out_path / "vocabulary.json"
+    train_path = out_path / "train_split.pt"
+    valid_path = out_path / "valid_split.pt"
+    test_path = out_path / "test_split.pt"
+
+    if not os.path.exists(vocab_path):
+        vocabulary = download_vocabulary_from_s3(settings)
+        with open(vocab_path, "w", encoding="utf-8") as f:
+            json.dump(vocabulary, f, ensure_ascii=False, indent=4)
+
+    if not os.path.exists(train_path):
+        train_embeddings, train_targets = load_split_data_from_s3("train", settings)
+        torch.save((train_embeddings, train_targets), train_path)
+
+    if not os.path.exists(valid_path):
+        valid_embeddings, valid_targets = load_split_data_from_s3("valid", settings)
+        torch.save((valid_embeddings, valid_targets), valid_path)
+
+    if not os.path.exists(test_path):
+        test_embeddings, test_targets = load_split_data_from_s3("test", settings)
+        torch.save((test_embeddings, test_targets), test_path)
