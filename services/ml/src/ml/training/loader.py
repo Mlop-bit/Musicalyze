@@ -29,6 +29,7 @@ def load_jamendo(
 
     tracks_moods = load_autotagging_moodtheme(moodtheme_file_path)
     vocabulary = create_mood_to_index(tracks_moods)
+    output_path.mkdir(parents=True, exist_ok=True)
     with open(output_path / "vocabulary.json", "w", encoding="utf-8") as f:
         json.dump(vocabulary, f, indent=2)
     upload_vocabulary_to_s3(vocabulary, settings)
