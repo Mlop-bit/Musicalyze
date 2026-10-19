@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     db_user: NonEmptyStr
     db_password: SecretStr
     db_name: NonEmptyStr
+    musicbrainz_contact: NonEmptyStr | None = None
     acousticbrainz_dump_dir: Path = Path("acousticbrainz-dumps")
     acousticbrainz_extract_dir: Path = Path("acousticbrainz-extracted")
     acousticbrainz_shard_cache_dir: Path = Path("acousticbrainz-shard-cache")

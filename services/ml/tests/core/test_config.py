@@ -35,6 +35,15 @@ def test_acousticbrainz_shard_cache_dir_has_a_default() -> None:
     assert settings.acousticbrainz_shard_cache_dir == Path("acousticbrainz-shard-cache")
 
 
+def test_musicbrainz_contact_is_optional() -> None:
+    assert _settings().musicbrainz_contact is None
+
+
+def test_empty_musicbrainz_contact_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        _settings(musicbrainz_contact="")
+
+
 def test_database_url_builds_postgres_dsn_with_psycopg_driver() -> None:
     settings = _settings(
         db_host="db.internal",
