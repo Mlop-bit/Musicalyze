@@ -143,3 +143,6 @@ acousticbrainz-shard-cache/
 
 # Superpowers subagent-driven-development scratch workspace
 .superpowers/
+
+# MTG-Jamendo dataset
+/services/ml/data/
