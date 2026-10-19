@@ -1,5 +1,6 @@
 import librosa
 import torch
+import torch.nn.functional as f
 
 from ml.core.muq import MuQ, embed
 from ml.training.track import Track
@@ -8,18 +9,23 @@ from ml.training.track import Track
 def extract_track_embedding(audio_path: str, model: MuQ) -> torch.Tensor:
     total_duration = librosa.get_duration(path=audio_path)
     target_duration = 30.0
-    offset = (total_duration - target_duration) / 2.0
 
-    if total_duration < target_duration:
-        raise ValueError(
-            f"Audio file '{audio_path}' is too short ({total_duration:.2f}s). "
-            f"Minimum required duration is {target_duration}s."
+    if total_duration >= target_duration:
+        offset = (total_duration - target_duration) / 2.0
+        audio_np, _sample_rate = librosa.load(
+            audio_path, sr=24000, mono=True, offset=offset, duration=30
         )
+        waveform = torch.tensor(audio_np, dtype=torch.float32).unsqueeze(0)
 
-    audio_np, _sample_rate = librosa.load(
-        audio_path, sr=24000, mono=True, offset=offset, duration=30
-    )
-    waveform = torch.tensor(audio_np, dtype=torch.float32).unsqueeze(0)
+    else:
+        audio_np, _sample_rate = librosa.load(audio_path, sr=24000, mono=True)
+        waveform = torch.tensor(audio_np, dtype=torch.float32).unsqueeze(0)
+        target_samples = int(target_duration * 24000)
+        current_samples = waveform.shape[-1]
+
+        if current_samples < target_samples:
+            padding_needed = target_samples - current_samples
+            waveform = f.pad(waveform, (0, padding_needed))
 
     return embed(model, waveform)
 
