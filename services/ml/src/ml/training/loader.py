@@ -23,6 +23,7 @@ def load_jamendo(
     moodtheme_file_path: str,
     audio_dir: str,
     output_dir: str,
+    batch_size: int,
 ) -> None:
     output_path = Path(output_dir)
 
@@ -34,9 +35,9 @@ def load_jamendo(
 
     model = load_model()
 
-    process_split(train_file_path, "train", audio_dir, vocabulary, model, settings)
-    process_split(valid_file_path, "valid", audio_dir, vocabulary, model, settings)
-    process_split(test_file_path, "test", audio_dir, vocabulary, model, settings)
+    process_split(train_file_path, "train", audio_dir, vocabulary, model, batch_size, settings)
+    process_split(valid_file_path, "valid", audio_dir, vocabulary, model, batch_size, settings)
+    process_split(test_file_path, "test", audio_dir, vocabulary, model, batch_size, settings)
 
 
 def process_split(
@@ -45,51 +46,39 @@ def process_split(
     audio_dir: str,
     vocabulary: dict[str, int],
     model: MuQ,
+    batch_size: int,
     settings: Settings,
 ) -> None:
     tracks = load_autotagging_moodtheme(tsv_path)
     audio_path_base = Path(audio_dir)
 
-    batch_embeddings: list[torch.Tensor] = []
-    batch_targets: list[torch.Tensor] = []
-    batch_size = 32
-    batch_index = 0
-
     completed_batch_indices = get_existing_batch_from_s3(split_name, settings)
-    while batch_index in completed_batch_indices:
-        batch_index += 1
-    if batch_index > 0:
-        tracks = tracks[batch_index * batch_size :]
 
-    for track in tracks:
-        audio_file_path = audio_path_base / track["path"].replace(".mp3", ".low.mp3")
-        if not audio_file_path.exists():
+    for batch_index, i in enumerate(range(0, len(tracks), batch_size)):
+        if batch_index in completed_batch_indices:
             continue
 
-        embedding = extract_track_embedding(str(audio_file_path), model)
-        target = moods_to_vector(track["moods"], vocabulary)
+        chunk_tracks = tracks[i : i + batch_size]
+        batch_embeddings: list[torch.Tensor] = []
+        batch_targets: list[torch.Tensor] = []
 
-        batch_embeddings.append(embedding.squeeze(0).cpu())
-        batch_targets.append(target)
+        for track in chunk_tracks:
+            audio_file_path = audio_path_base / track["path"].replace(".mp3", ".low.mp3")
+            if not audio_file_path.exists():
+                continue
 
-        if len(batch_embeddings) == batch_size:
+            embedding = extract_track_embedding(str(audio_file_path), model)
+            target = moods_to_vector(track["moods"], vocabulary)
+
+            batch_embeddings.append(embedding.squeeze(0).cpu())
+            batch_targets.append(target)
+
+        if batch_embeddings:
             batch_payload = {
                 "embeddings": torch.stack(batch_embeddings),
                 "targets": torch.stack(batch_targets),
             }
             upload_jamendo_to_s3(f"batch_{batch_index:04d}", split_name, batch_payload, settings)
-
-            batch_embeddings = []
-            batch_targets = []
-            batch_index += 1
-
-    if batch_embeddings:
-        batch_payload = {
-            "embeddings": torch.stack(batch_embeddings),
-            "targets": torch.stack(batch_targets),
-        }
-        upload_jamendo_to_s3(f"batch_{batch_index:04d}", split_name, batch_payload, settings)
-
 
 def load_autotagging_moodtheme(input_file: str) -> list[Track]:
     tracks: list[Track] = []
