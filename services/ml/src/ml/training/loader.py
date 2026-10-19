@@ -53,6 +53,7 @@ def process_split(
     audio_path_base = Path(audio_dir)
 
     completed_batch_indices = get_existing_batch_from_s3(split_name, settings)
+    dropped_count = 0
 
     for batch_index, i in enumerate(range(0, len(tracks), batch_size)):
         if batch_index in completed_batch_indices:
@@ -65,6 +66,8 @@ def process_split(
         for track in chunk_tracks:
             audio_file_path = audio_path_base / track["path"].replace(".mp3", ".low.mp3")
             if not audio_file_path.exists():
+                dropped_count += 1
+                print(f"Audio file not found: {audio_file_path}")
                 continue
 
             embedding = extract_track_embedding(str(audio_file_path), model)
@@ -79,6 +82,9 @@ def process_split(
                 "targets": torch.stack(batch_targets),
             }
             upload_jamendo_to_s3(f"batch_{batch_index:04d}", split_name, batch_payload, settings)
+
+    if dropped_count > 0:
+        print(f"[{split_name}] Completed with {dropped_count} missing audio tracks dropped.")
 
 def load_autotagging_moodtheme(input_file: str) -> list[Track]:
     tracks: list[Track] = []
