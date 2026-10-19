@@ -104,6 +104,12 @@ def load_split_data_from_s3(
     split_name: str, settings: Settings
 ) -> tuple[torch.Tensor, torch.Tensor]:
     batch_indices = sorted(list(get_existing_batch_from_s3(split_name, settings)))
+    if not batch_indices:
+        raise ValueError(
+            f"No batches found on S3 for split '{split_name}'. "
+            f"Make sure process_split has been run successfully."
+        )
+
     all_embeddings: list[torch.Tensor] = []
     all_targets: list[torch.Tensor] = []
 
