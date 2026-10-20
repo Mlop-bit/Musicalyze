@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 def train_jamendo(
     settings: Settings,
     output_dir: str,
-    epochs: int = 20,
+    epochs: int = 50,
     batch_size: int = 32,
     lr: float = 1e-3,
-    patience: int = 5,
+    patience: int = 8,
 ) -> None:
     configure_logging()
     device = resolve_device()
@@ -52,7 +52,7 @@ def train_jamendo(
     criterion = BCEWithLogitsLoss()
     optimizer = AdamW(model.parameters(), lr=lr)
 
-    best_val_loss = float("inf")
+    best_selection_score = -1.0
     patience_counter = 0
 
     for epoch in range(epochs):
@@ -112,7 +112,8 @@ def train_jamendo(
                 "epoch %d: ROC-AUC and PR-AUC could not be computed", epoch + 1, exc_info=True
             )
 
-        is_best = avg_valid_loss < best_val_loss
+        selection_score = val_pr_auc if val_pr_auc is not None else -1.0
+        is_best = selection_score > best_selection_score
         patience_counter = 0 if is_best else patience_counter + 1
 
         metrics_text = (
@@ -132,9 +133,7 @@ def train_jamendo(
         )
 
         if is_best:
-            best_val_loss = avg_valid_loss
-            best_val_roc_auc = val_roc_auc
-            best_val_pr_auc = val_pr_auc
+            best_selection_score = selection_score
 
             checkpoint = {
                 "weights": model.state_dict(),
@@ -148,14 +147,14 @@ def train_jamendo(
                     "patience": patience,
                 },
                 "validation_metrics": {
-                    "best_val_loss": best_val_loss,
-                    "roc_auc": best_val_roc_auc,
-                    "pr_auc": best_val_pr_auc,
+                    "val_loss": avg_valid_loss,
+                    "roc_auc": val_roc_auc,
+                    "pr_auc": val_pr_auc,
                 },
             }
             torch.save(checkpoint, output_path / "best_model_checkpoint.pt")
             upload_artifact_to_s3("best_model_checkpoint.pt", output_dir, settings)
-            logger.info("epoch %d: new best checkpoint saved and uploaded to S3", epoch + 1)
+            logger.info("epoch %d: new best pr_auc, checkpoint saved and uploaded to S3", epoch + 1)
         elif patience_counter >= patience:
             logger.info("early stopping triggered at epoch %d", epoch + 1)
             break
