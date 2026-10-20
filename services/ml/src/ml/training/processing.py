@@ -59,33 +59,28 @@ def create_mood_to_index(tracks: list[Track]) -> dict[str, int]:
     return mood_to_index
 
 
+def save_atomically(payload: tuple[torch.Tensor, torch.Tensor], path: Path) -> None:
+    temporary_path = path.with_name(f"{path.name}.tmp")
+    torch.save(payload, temporary_path)
+    temporary_path.replace(path)
+
+
+def ensure_split_downloaded(split_name: str, path: Path, settings: Settings) -> None:
+    if path.exists():
+        return
+
+    logger.info("[%s] split not found locally, loading it from S3", split_name)
+    save_atomically(load_split_data_from_s3(split_name, settings), path)
+    logger.info("[%s] split saved to %s", split_name, path)
+
+
 def ensure_data_downloaded(settings: Settings, output_dir: str) -> None:
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    vocab_path = out_path / "vocabulary.json"
-    train_path = out_path / "train_split.pt"
-    valid_path = out_path / "valid_split.pt"
-    test_path = out_path / "test_split.pt"
-
-    if not vocab_path.exists():
+    if not (out_path / "vocabulary.json").exists():
         logger.info("downloading vocabulary from S3")
         download_artifact_from_s3("vocabulary.json", output_dir, settings)
 
-    if not train_path.exists():
-        logger.info("[train] split not found locally, loading it from S3")
-        train_embeddings, train_targets = load_split_data_from_s3("train", settings)
-        torch.save((train_embeddings, train_targets), train_path)
-        logger.info("[train] split saved to %s", train_path)
-
-    if not valid_path.exists():
-        logger.info("[valid] split not found locally, loading it from S3")
-        valid_embeddings, valid_targets = load_split_data_from_s3("valid", settings)
-        torch.save((valid_embeddings, valid_targets), valid_path)
-        logger.info("[valid] split saved to %s", valid_path)
-
-    if not test_path.exists():
-        logger.info("[test] split not found locally, loading it from S3")
-        test_embeddings, test_targets = load_split_data_from_s3("test", settings)
-        torch.save((test_embeddings, test_targets), test_path)
-        logger.info("[test] split saved to %s", test_path)
+    for split_name in ("train", "valid", "test"):
+        ensure_split_downloaded(split_name, out_path / f"{split_name}_split.pt", settings)

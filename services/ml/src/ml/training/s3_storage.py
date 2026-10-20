@@ -92,9 +92,13 @@ def download_artifact_from_s3(file_name: str, output_dir: str, settings: Setting
     out_path.parent.mkdir(parents=True, exist_ok=True)
     s3_key = f"jamendo/{file_name}"
 
+    temporary_path = out_path.with_name(f"{out_path.name}.tmp")
+
     try:
-        download_model(s3_key, out_path, settings)
+        download_model(s3_key, temporary_path, settings)
+        temporary_path.replace(out_path)
     except Exception as e:
+        temporary_path.unlink(missing_ok=True)
         raise RuntimeError(f"Failed to download artifact '{file_name}' from S3: {e}") from e
 
 
