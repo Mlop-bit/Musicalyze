@@ -108,7 +108,12 @@ def train_jamendo(
             writer.add_scalar("metrics/roc_auc", val_roc_auc, epoch)
             writer.add_scalar("metrics/pr_auc", val_pr_auc, epoch)
         except ValueError:
-            logger.warning("epoch %d: ROC-AUC and PR-AUC could not be computed", epoch + 1)
+            logger.warning(
+                "epoch %d: ROC-AUC and PR-AUC could not be computed", epoch + 1, exc_info=True
+            )
+
+        is_best = avg_valid_loss < best_val_loss
+        patience_counter = 0 if is_best else patience_counter + 1
 
         metrics_text = (
             "n/a"
@@ -126,11 +131,10 @@ def train_jamendo(
             patience,
         )
 
-        if avg_valid_loss < best_val_loss:
+        if is_best:
             best_val_loss = avg_valid_loss
             best_val_roc_auc = val_roc_auc
             best_val_pr_auc = val_pr_auc
-            patience_counter = 0
 
             checkpoint = {
                 "weights": model.state_dict(),
@@ -152,10 +156,8 @@ def train_jamendo(
             torch.save(checkpoint, output_path / "best_model_checkpoint.pt")
             upload_artifact_to_s3("best_model_checkpoint.pt", output_dir, settings)
             logger.info("epoch %d: new best checkpoint saved and uploaded to S3", epoch + 1)
-        else:
-            patience_counter += 1
-            if patience_counter >= patience:
-                logger.info("early stopping triggered at epoch %d", epoch + 1)
-                break
+        elif patience_counter >= patience:
+            logger.info("early stopping triggered at epoch %d", epoch + 1)
+            break
 
     writer.close()
