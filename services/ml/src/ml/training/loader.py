@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 
 from ml.core.config import Settings
+from ml.core.logging import configure_logging
 from ml.core.muq import MuQ, load_model
 from ml.training.processing import create_mood_to_index, extract_track_embedding, moods_to_vector
 from ml.training.s3_storage import (
@@ -30,6 +31,7 @@ def load_jamendo(
     output_dir: str,
     batch_size: int,
 ) -> None:
+    configure_logging()
     output_path = Path(output_dir)
 
     tracks_moods = load_autotagging_moodtheme(moodtheme_file_path)

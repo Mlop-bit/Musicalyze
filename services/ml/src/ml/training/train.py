@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 
 from ml.core.config import Settings
 from ml.core.device import resolve_device
+from ml.core.logging import configure_logging
 from ml.training.classifier import MoodThemeClassifier
 from ml.training.experiment_log import create_writer
 from ml.training.jamendo_dataset import JamendoDataset
@@ -29,6 +30,7 @@ def train_jamendo(
     lr: float = 1e-3,
     patience: int = 5,
 ) -> None:
+    configure_logging()
     device = resolve_device()
     writer = create_writer("mood_classifier_run")
 

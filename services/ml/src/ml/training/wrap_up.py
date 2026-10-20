@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 
 from ml.core.config import Settings
 from ml.core.device import resolve_device
+from ml.core.logging import configure_logging
 from ml.training.classifier import MoodThemeClassifier
 from ml.training.jamendo_dataset import JamendoDataset
 from ml.training.metrics import pr_auc, roc_auc
@@ -23,6 +24,7 @@ def wrap_up_jamendo(
     output_dir: str,
     batch_size: int = 32,
 ) -> dict[str, float]:
+    configure_logging()
     device = resolve_device()
     output_path = Path(output_dir)
 
