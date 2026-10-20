@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +14,8 @@ from ml.training.jamendo_dataset import JamendoDataset
 from ml.training.metrics import pr_auc, roc_auc
 from ml.training.processing import ensure_data_downloaded
 from ml.training.s3_storage import upload_artifact_to_s3
+
+logger = logging.getLogger(__name__)
 
 
 def wrap_up_jamendo(
@@ -73,9 +76,7 @@ def wrap_up_jamendo(
         "test_pr_auc": test_pr_auc,
     }
 
-    print(f"Loss    : {avg_test_loss:.4f}")
-    print(f"ROC-AUC : {test_roc_auc:.4f}")
-    print(f"PR-AUC  : {test_pr_auc:.4f}")
+    logger.info("test loss=%.4f roc_auc=%.4f pr_auc=%.4f", avg_test_loss, test_roc_auc, test_pr_auc)
 
     final_model_path = output_path / "mood_theme_classifier_final.pt"
 

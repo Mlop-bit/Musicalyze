@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +17,8 @@ from ml.training.jamendo_dataset import JamendoDataset
 from ml.training.metrics import pr_auc, roc_auc
 from ml.training.processing import ensure_data_downloaded
 from ml.training.s3_storage import upload_artifact_to_s3
+
+logger = logging.getLogger(__name__)
 
 
 def train_jamendo(
@@ -103,7 +106,23 @@ def train_jamendo(
             writer.add_scalar("metrics/roc_auc", val_roc_auc, epoch)
             writer.add_scalar("metrics/pr_auc", val_pr_auc, epoch)
         except ValueError:
-            pass
+            logger.warning("epoch %d: ROC-AUC and PR-AUC could not be computed", epoch + 1)
+
+        metrics_text = (
+            "n/a"
+            if val_roc_auc is None or val_pr_auc is None
+            else f"roc_auc={val_roc_auc:.4f} pr_auc={val_pr_auc:.4f}"
+        )
+        logger.info(
+            "epoch %d/%d train_loss=%.4f valid_loss=%.4f %s patience=%d/%d",
+            epoch + 1,
+            epochs,
+            avg_train_loss,
+            avg_valid_loss,
+            metrics_text,
+            patience_counter,
+            patience,
+        )
 
         if avg_valid_loss < best_val_loss:
             best_val_loss = avg_valid_loss
@@ -130,10 +149,11 @@ def train_jamendo(
             }
             torch.save(checkpoint, output_path / "best_model_checkpoint.pt")
             upload_artifact_to_s3("best_model_checkpoint.pt", output_dir, settings)
+            logger.info("epoch %d: new best checkpoint saved and uploaded to S3", epoch + 1)
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                print("Early stopping triggered.")
+                logger.info("early stopping triggered at epoch %d", epoch + 1)
                 break
 
     writer.close()
