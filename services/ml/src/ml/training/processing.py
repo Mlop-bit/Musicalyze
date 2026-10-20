@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import librosa
@@ -8,6 +9,8 @@ from ml.core.config import Settings
 from ml.core.muq import MuQ, embed
 from ml.training.s3_storage import download_artifact_from_s3, load_split_data_from_s3
 from ml.training.track import Track
+
+logger = logging.getLogger(__name__)
 
 
 def extract_track_embedding(audio_path: str, model: MuQ) -> torch.Tensor:
@@ -66,16 +69,23 @@ def ensure_data_downloaded(settings: Settings, output_dir: str) -> None:
     test_path = out_path / "test_split.pt"
 
     if not vocab_path.exists():
+        logger.info("downloading vocabulary from S3")
         download_artifact_from_s3("vocabulary.json", output_dir, settings)
 
     if not train_path.exists():
+        logger.info("[train] split not found locally, loading it from S3")
         train_embeddings, train_targets = load_split_data_from_s3("train", settings)
         torch.save((train_embeddings, train_targets), train_path)
+        logger.info("[train] split saved to %s", train_path)
 
     if not valid_path.exists():
+        logger.info("[valid] split not found locally, loading it from S3")
         valid_embeddings, valid_targets = load_split_data_from_s3("valid", settings)
         torch.save((valid_embeddings, valid_targets), valid_path)
+        logger.info("[valid] split saved to %s", valid_path)
 
     if not test_path.exists():
+        logger.info("[test] split not found locally, loading it from S3")
         test_embeddings, test_targets = load_split_data_from_s3("test", settings)
         torch.save((test_embeddings, test_targets), test_path)
+        logger.info("[test] split saved to %s", test_path)

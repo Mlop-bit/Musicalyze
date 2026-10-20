@@ -1,5 +1,8 @@
 import csv
 import json
+import logging
+import math
+import time
 from pathlib import Path
 
 import torch
@@ -13,6 +16,8 @@ from ml.training.s3_storage import (
     upload_jamendo_to_s3,
 )
 from ml.training.track import Track
+
+logger = logging.getLogger(__name__)
 
 
 def load_jamendo(
@@ -33,8 +38,11 @@ def load_jamendo(
     with open(output_path / "vocabulary.json", "w", encoding="utf-8") as f:
         json.dump(vocabulary, f, indent=2)
     upload_artifact_to_s3("vocabulary.json", output_dir, settings)
+    logger.info("vocabulary with %d moods built and uploaded to S3", len(vocabulary))
 
+    logger.info("loading MuQ model")
     model = load_model()
+    logger.info("MuQ model loaded")
 
     process_split(train_file_path, "train", audio_dir, vocabulary, model, batch_size, settings)
     process_split(valid_file_path, "valid", audio_dir, vocabulary, model, batch_size, settings)
@@ -53,8 +61,20 @@ def process_split(
     tracks = load_autotagging_moodtheme(tsv_path)
     audio_path_base = Path(audio_dir)
 
+    total_batches = math.ceil(len(tracks) / batch_size)
     completed_batch_indices = get_existing_batch_from_s3(split_name, settings)
+    logger.info(
+        "[%s] %d tracks, %d batches, %d already on S3",
+        split_name,
+        len(tracks),
+        total_batches,
+        len(completed_batch_indices),
+    )
+
     dropped_count = 0
+    created_count = 0
+    embedded_count = 0
+    started_at = time.perf_counter()
 
     for batch_index, i in enumerate(range(0, len(tracks), batch_size)):
         if batch_index in completed_batch_indices:
@@ -68,7 +88,7 @@ def process_split(
             audio_file_path = audio_path_base / track["path"].replace(".mp3", ".low.mp3")
             if not audio_file_path.exists():
                 dropped_count += 1
-                print(f"Audio file not found: {audio_file_path}")
+                logger.warning("[%s] audio file not found: %s", split_name, audio_file_path)
                 continue
 
             embedding = extract_track_embedding(str(audio_file_path), model)
@@ -76,6 +96,7 @@ def process_split(
 
             batch_embeddings.append(embedding.squeeze(0).cpu())
             batch_targets.append(target)
+            embedded_count += 1
 
         if batch_embeddings:
             batch_payload = {
@@ -83,9 +104,25 @@ def process_split(
                 "targets": torch.stack(batch_targets),
             }
             upload_jamendo_to_s3(f"batch_{batch_index:04d}", split_name, batch_payload, settings)
+            created_count += 1
+            seconds_per_track = (time.perf_counter() - started_at) / embedded_count
+            logger.info(
+                "[%s] batch %d/%d uploaded (%d tracks embedded this run, %.1f s/track)",
+                split_name,
+                batch_index + 1,
+                total_batches,
+                embedded_count,
+                seconds_per_track,
+            )
 
-    if dropped_count > 0:
-        print(f"[{split_name}] Completed with {dropped_count} missing audio tracks dropped.")
+    logger.info(
+        "[%s] done: %d batches created, %d skipped as already on S3, "
+        "%d tracks dropped for missing audio (this run only)",
+        split_name,
+        created_count,
+        len(completed_batch_indices),
+        dropped_count,
+    )
 
 
 def load_autotagging_moodtheme(input_file: str) -> list[Track]:

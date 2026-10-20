@@ -1,3 +1,4 @@
+import logging
 import tempfile
 from pathlib import Path
 
@@ -5,6 +6,10 @@ import torch
 
 from ml.core.artifact_store import download_model, s3_client, upload_model
 from ml.core.config import Settings
+
+logger = logging.getLogger(__name__)
+
+DOWNLOAD_LOG_INTERVAL = 50
 
 
 def upload_jamendo_to_s3(
@@ -103,13 +108,17 @@ def load_split_data_from_s3(
             f"Make sure process_split has been run successfully."
         )
 
+    logger.info("[%s] downloading %d batches from S3", split_name, len(batch_indices))
+
     all_embeddings: list[torch.Tensor] = []
     all_targets: list[torch.Tensor] = []
 
-    for idx in batch_indices:
+    for position, idx in enumerate(batch_indices, start=1):
         batch_name = f"batch_{idx:04d}"
         payload = download_jamendo_from_s3(batch_name, split_name, settings)
         all_embeddings.append(payload["embeddings"])
         all_targets.append(payload["targets"])
+        if position % DOWNLOAD_LOG_INTERVAL == 0 or position == len(batch_indices):
+            logger.info("[%s] downloaded %d/%d batches", split_name, position, len(batch_indices))
 
     return torch.cat(all_embeddings, dim=0), torch.cat(all_targets, dim=0)
