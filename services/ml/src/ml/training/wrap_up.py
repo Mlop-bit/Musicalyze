@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import torch
-from sklearn.metrics import average_precision_score, roc_auc_score
 from torch.nn import BCEWithLogitsLoss
 from torch.utils.data import DataLoader
 
@@ -10,6 +10,7 @@ from ml.core.config import Settings
 from ml.core.device import resolve_device
 from ml.training.classifier import MoodThemeClassifier
 from ml.training.jamendo_dataset import JamendoDataset
+from ml.training.metrics import pr_auc, roc_auc
 from ml.training.processing import ensure_data_downloaded
 from ml.training.s3_storage import upload_artifact_to_s3
 
@@ -18,7 +19,7 @@ def wrap_up_jamendo(
     settings: Settings,
     output_dir: str,
     batch_size: int = 32,
-) -> dict:
+) -> dict[str, float]:
     device = resolve_device()
     output_path = Path(output_dir)
 
@@ -42,8 +43,8 @@ def wrap_up_jamendo(
 
     criterion = BCEWithLogitsLoss()
     test_loss = 0.0
-    all_preds = []
-    all_targets = []
+    all_preds: list[npt.NDArray[np.float32]] = []
+    all_targets: list[npt.NDArray[np.float32]] = []
 
     with torch.no_grad():
         for embeddings, targets in test_loader:
@@ -54,18 +55,19 @@ def wrap_up_jamendo(
             loss = criterion(logits, targets)
             test_loss += loss.item()
 
-            preds = torch.sigmoid(logits).cpu().numpy()
+            preds = torch.sigmoid(logits).cpu().numpy().astype(np.float32)
             all_preds.append(preds)
-            all_targets.append(targets.cpu().numpy())
+            targets_np = targets.detach().cpu().numpy().astype(np.float32)
+            all_targets.append(targets_np)
 
-    avg_test_loss = test_loss / len(test_loader)
-    all_preds = np.vstack(all_preds)
-    all_targets = np.vstack(all_targets)
+    avg_test_loss = float(test_loss / len(test_loader))
+    preds_array = np.vstack(all_preds).astype(np.float32)
+    targets_array = np.vstack(all_targets).astype(np.float32)
 
-    test_roc_auc = roc_auc_score(all_targets, all_preds, average="macro")
-    test_pr_auc = average_precision_score(all_targets, all_preds, average="macro")
+    test_roc_auc = roc_auc(targets_array, preds_array)
+    test_pr_auc = pr_auc(targets_array, preds_array)
 
-    final_metrics = {
+    final_metrics: dict[str, float] = {
         "test_loss": avg_test_loss,
         "test_roc_auc": test_roc_auc,
         "test_pr_auc": test_pr_auc,

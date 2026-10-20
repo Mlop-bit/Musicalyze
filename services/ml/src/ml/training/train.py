@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import torch
-from sklearn.metrics import average_precision_score, roc_auc_score
 from torch.nn import BCEWithLogitsLoss
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
@@ -13,6 +13,7 @@ from ml.core.device import resolve_device
 from ml.training.classifier import MoodThemeClassifier
 from ml.training.experiment_log import create_writer
 from ml.training.jamendo_dataset import JamendoDataset
+from ml.training.metrics import pr_auc, roc_auc
 from ml.training.processing import ensure_data_downloaded
 from ml.training.s3_storage import upload_artifact_to_s3
 
@@ -32,7 +33,7 @@ def train_jamendo(
     ensure_data_downloaded(settings, output_dir)
 
     with open(output_path / "vocabulary.json", encoding="utf-8") as f:
-        vocabulary = json.load(f)
+        vocabulary: dict[str, int] = json.load(f)
     num_classes = len(vocabulary)
     train_embeddings, train_targets = torch.load(output_path / "train_split.pt")
     valid_embeddings, valid_targets = torch.load(output_path / "valid_split.pt")
@@ -71,8 +72,8 @@ def train_jamendo(
 
         model.eval()
         valid_loss = 0.0
-        all_preds = []
-        all_targets = []
+        all_preds: list[npt.NDArray[np.float32]] = []
+        all_targets: list[npt.NDArray[np.float32]] = []
 
         with torch.no_grad():
             for embeddings, targets in valid_loader:
@@ -83,20 +84,21 @@ def train_jamendo(
                 loss = criterion(logits, targets)
                 valid_loss += loss.item()
 
-                preds = torch.sigmoid(logits).cpu().numpy()
+                preds = torch.sigmoid(logits).cpu().numpy().astype(np.float32)
                 all_preds.append(preds)
-                all_targets.append(targets.cpu().numpy())
+                targets_np = targets.detach().cpu().numpy().astype(np.float32)
+                all_targets.append(targets_np)
 
         avg_valid_loss = valid_loss / len(valid_loader)
         writer.add_scalar("loss/valid", avg_valid_loss, epoch)
-        all_preds = np.vstack(all_preds)
-        all_targets = np.vstack(all_targets)
+        preds_array = np.vstack(all_preds).astype(np.float32)
+        targets_array = np.vstack(all_targets).astype(np.float32)
 
-        val_roc_auc = None
-        val_pr_auc = None
+        val_roc_auc: float | None = None
+        val_pr_auc: float | None = None
         try:
-            val_roc_auc = roc_auc_score(all_targets, all_preds, average="macro")
-            val_pr_auc = average_precision_score(all_targets, all_preds, average="macro")
+            val_roc_auc = roc_auc(targets_array, preds_array)
+            val_pr_auc = pr_auc(targets_array, preds_array)
 
             writer.add_scalar("metrics/roc_auc", val_roc_auc, epoch)
             writer.add_scalar("metrics/pr_auc", val_pr_auc, epoch)
