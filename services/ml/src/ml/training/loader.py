@@ -65,12 +65,13 @@ def process_split(
 
     total_batches = math.ceil(len(tracks) / batch_size)
     completed_batch_indices = get_existing_batch_from_s3(split_name, settings)
+    resumed_count = sum(1 for index in completed_batch_indices if index < total_batches)
     logger.info(
         "[%s] %d tracks, %d batches, %d already on S3",
         split_name,
         len(tracks),
         total_batches,
-        len(completed_batch_indices),
+        resumed_count,
     )
 
     dropped_count = 0
@@ -85,12 +86,12 @@ def process_split(
         chunk_tracks = tracks[i : i + batch_size]
         batch_embeddings: list[torch.Tensor] = []
         batch_targets: list[torch.Tensor] = []
+        missing_paths: list[Path] = []
 
         for track in chunk_tracks:
             audio_file_path = audio_path_base / track["path"].replace(".mp3", ".low.mp3")
             if not audio_file_path.exists():
-                dropped_count += 1
-                logger.warning("[%s] audio file not found: %s", split_name, audio_file_path)
+                missing_paths.append(audio_file_path)
                 continue
 
             embedding = extract_track_embedding(str(audio_file_path), model)
@@ -99,6 +100,17 @@ def process_split(
             batch_embeddings.append(embedding.squeeze(0).cpu())
             batch_targets.append(target)
             embedded_count += 1
+
+        if missing_paths:
+            dropped_count += len(missing_paths)
+            logger.warning(
+                "[%s] batch %d: %d of %d audio files not found, first: %s",
+                split_name,
+                batch_index + 1,
+                len(missing_paths),
+                len(chunk_tracks),
+                missing_paths[0],
+            )
 
         if batch_embeddings:
             batch_payload = {
@@ -122,7 +134,7 @@ def process_split(
         "%d tracks dropped for missing audio (this run only)",
         split_name,
         created_count,
-        len(completed_batch_indices),
+        resumed_count,
         dropped_count,
     )
 
