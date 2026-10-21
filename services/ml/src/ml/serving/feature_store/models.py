@@ -23,6 +23,6 @@ class TrackFeatures(Base):
     average_loudness: Mapped[float | None]
     dynamic_complexity: Mapped[float | None]
     voice_instrumental: Mapped[str | None]
-    mood_scores: Mapped[dict[str, float] | None] = mapped_column(JSONB)
+    mood_scores: Mapped[dict[str, float] | None] = mapped_column(JSONB(none_as_null=True))
     mood_label: Mapped[str | None]
     source: Mapped[str | None]
