@@ -146,3 +146,4 @@ acousticbrainz-shard-cache/
 
 # MTG-Jamendo dataset
 /services/ml/data/
+classifier-cache/
