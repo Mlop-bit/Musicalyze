@@ -72,11 +72,10 @@ def _search_deezer_track(
     if search_query is None:
         return None
 
-    search_response = httpx.get(
-        f"{BASE_URL}/search", params={"q": search_query}, headers=HEADERS, timeout=TIMEOUT
-    )
-    search_response.raise_for_status()
-    results = search_response.json().get("data", [])
+    results = _search_results(search_query)
+    if not results and artist and track:
+        search_query = f"{artist} {track}"
+        results = _search_results(search_query)
     if not results:
         return None
 
@@ -85,6 +84,14 @@ def _search_deezer_track(
     )
     track_response.raise_for_status()
     return _to_deezer_track(track_response.json(), f"flexible search ({search_query!r})")
+
+
+def _search_results(search_query: str) -> list[dict[str, Any]]:
+    response = httpx.get(
+        f"{BASE_URL}/search", params={"q": search_query}, headers=HEADERS, timeout=TIMEOUT
+    )
+    response.raise_for_status()
+    return response.json().get("data", [])
 
 
 def _build_query(artist: str | None, track: str | None, query: str | None) -> str | None:

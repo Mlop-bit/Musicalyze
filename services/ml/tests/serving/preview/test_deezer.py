@@ -86,6 +86,25 @@ def test_search_falls_back_to_query_search_when_isrc_is_not_found() -> None:
     assert search_call.kwargs["params"] == {"q": 'artist:"Daft Punk" track:"Get Lucky"'}
 
 
+def test_search_retries_with_a_plain_query_when_the_fielded_query_has_no_results() -> None:
+    empty_response = _response({"data": []})
+    plain_response = _response({"data": [{"id": 42}]})
+    track_response = _response({"id": 42, "title": "Creep"})
+
+    with (
+        patch(
+            "ml.serving.preview.deezer.httpx.get",
+            side_effect=[empty_response, plain_response, track_response],
+        ) as mock_get,
+        _patch_cache_miss(),
+    ):
+        result = search_deezer_track(_settings(), artist="Radiohead", track="Creep")
+
+    assert result is not None
+    assert result["title"] == "Creep"
+    assert mock_get.call_args_list[1].kwargs["params"] == {"q": "Radiohead Creep"}
+
+
 def test_search_returns_none_when_nothing_matches() -> None:
     with (
         patch("ml.serving.preview.deezer.httpx.get", return_value=_response({"data": []})),
