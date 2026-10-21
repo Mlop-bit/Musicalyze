@@ -30,22 +30,26 @@ def test_embed_calls_model_with_output_hidden_states_true() -> None:
     fake_model.assert_called_once_with(waveform, output_hidden_states=True)
 
 
-def test_load_model_fetches_checkpoint_and_moves_to_resolved_device() -> None:
+def test_load_model_builds_the_checkpoint_directly_on_the_resolved_device() -> None:
     load_model.cache_clear()
     fake_model = MagicMock()
-    fake_model.to.return_value = fake_model
     fake_model.eval.return_value = fake_model
+    default_devices: list[str] = []
+
+    def record_default_device(checkpoint: str) -> MagicMock:
+        default_devices.append(torch.get_default_device().type)
+        return fake_model
 
     with (
         patch("ml.core.muq.MuQ") as mock_muq_cls,
-        patch("ml.core.muq.resolve_device", return_value="cpu"),
+        patch("ml.core.muq.resolve_device", return_value="meta"),
     ):
-        mock_muq_cls.from_pretrained.return_value = fake_model
+        mock_muq_cls.from_pretrained.side_effect = record_default_device
 
         result = load_model()
 
         mock_muq_cls.from_pretrained.assert_called_once_with("OpenMuQ/MuQ-large-msd-iter")
-        fake_model.to.assert_called_once_with("cpu")
+        assert default_devices == ["meta"]
         fake_model.eval.assert_called_once()
         assert result is fake_model
 

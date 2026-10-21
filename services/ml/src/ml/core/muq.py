@@ -11,14 +11,17 @@ _CHECKPOINT = "OpenMuQ/MuQ-large-msd-iter"
 
 @lru_cache(maxsize=1)
 def load_model() -> MuQ:
-    with warnings.catch_warnings():
+    with (
+        warnings.catch_warnings(),
+        torch.device(resolve_device()),
+    ):
         warnings.filterwarnings(
             "ignore",
             message=r"`torch\.nn\.utils\.weight_norm` is deprecated",
             category=FutureWarning,
         )
         model = MuQ.from_pretrained(_CHECKPOINT)
-    return model.to(resolve_device()).eval()
+    return model.eval()
 
 
 def embed(model: MuQ, waveform: torch.Tensor) -> torch.Tensor:
