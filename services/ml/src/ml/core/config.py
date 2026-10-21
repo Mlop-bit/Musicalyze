@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     acousticbrainz_dump_dir: Path = Path("acousticbrainz-dumps")
     acousticbrainz_extract_dir: Path = Path("acousticbrainz-extracted")
     acousticbrainz_shard_cache_dir: Path = Path("acousticbrainz-shard-cache")
+    classifier_cache_dir: Path = Path("classifier-cache")
 
     @property
     def database_url(self) -> str:

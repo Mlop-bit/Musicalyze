@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from ml.core.config import Settings
 from ml.serving.entity_resolution.resolver import resolve_musicbrainz_id
+from ml.serving.feature_store.classification import save_classifier_mood_for_track
 from ml.serving.feature_store.embedding import save_track_embedding_from_preview
 from ml.serving.feature_store.enrichment import save_acousticbrainz_enrichment
 from ml.serving.preview.deezer import search_deezer_track
@@ -50,6 +51,15 @@ def resolve_track(
                 musicbrainz_id,
                 exc_info=True,
             )
+
+    try:
+        save_classifier_mood_for_track(session, settings, track_id)
+    except Exception:
+        logger.warning(
+            "Classifier mood prediction failed for track_id=%s, continuing without it",
+            track_id,
+            exc_info=True,
+        )
 
 
 def _find_musicbrainz_id(

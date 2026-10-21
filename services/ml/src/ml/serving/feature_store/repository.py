@@ -1,8 +1,10 @@
-from sqlalchemy import update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import case, func, literal, update
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.orm import Session
 
 from ml.serving.feature_store.models import TrackFeatures
+
+CLASSIFIER_SOURCE = "classifier"
 
 
 def get_track_features(session: Session, track_id: str) -> TrackFeatures | None:
@@ -50,6 +52,27 @@ def save_enrichment(
             mood_scores=mood_scores,
             mood_label=mood_label,
             source=source,
+        )
+    )
+    session.execute(statement)
+
+
+def save_classifier_mood(
+    session: Session, track_id: str, mood_scores: dict[str, float], mood_label: str
+) -> None:
+    statement = (
+        update(TrackFeatures)
+        .where(TrackFeatures.track_id == track_id, TrackFeatures.mood_label.is_(None))
+        .values(
+            mood_scores=case(
+                (
+                    func.jsonb_typeof(TrackFeatures.mood_scores) == "object",
+                    TrackFeatures.mood_scores,
+                ),
+                else_=literal(mood_scores, type_=JSONB),
+            ),
+            mood_label=mood_label,
+            source=func.coalesce(TrackFeatures.source, CLASSIFIER_SOURCE),
         )
     )
     session.execute(statement)
