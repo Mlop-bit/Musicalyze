@@ -4,16 +4,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from ml.core.config import Settings
+from ml.core.logging import configure_logging
 from ml.serving.feature_store.repository import get_track_features
 from ml.serving.feature_store.resolution import resolve_track
 
 
 def main() -> None:
     track_id = sys.argv[1] if len(sys.argv) > 1 else "demo-track"
-    artist = sys.argv[2] if len(sys.argv) > 2 else "Caparezza"
-    title = sys.argv[3] if len(sys.argv) > 3 else "Fuori dal tunnel"
-    musicbrainz_id = sys.argv[4] if len(sys.argv) > 4 else "9b219a48-e141-46dc-8d05-2e7deb73a96f"
+    artist = sys.argv[2] if len(sys.argv) > 2 else "Radiohead"
+    title = sys.argv[3] if len(sys.argv) > 3 else "Creep"
+    musicbrainz_id = sys.argv[4] if len(sys.argv) > 4 else None
 
+    configure_logging()
     settings = Settings()
     engine = create_engine(settings.database_url)
 
@@ -42,6 +44,11 @@ def main() -> None:
         print(f"  bpm            = {row.bpm}")
         print(f"  key            = {row.key}")
         print(f"  mood_label     = {row.mood_label}")
+        if row.mood_scores is not None:
+            top_scores = sorted(row.mood_scores.items(), key=lambda item: item[1], reverse=True)[:5]
+            print("  top mood scores:")
+            for mood, score in top_scores:
+                print(f"    {mood:<14} {score:.3f}")
         print(f"  source         = {row.source}")
 
     engine.dispose()
