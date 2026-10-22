@@ -7,6 +7,8 @@ on:
     paths:
       - "services/ml/**"
       - ".github/workflows/ml-release.yml"
+    tags:
+      - "v*.*.*"
 
 permissions:
   contents: read
@@ -27,10 +29,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}/ml
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=long,prefix=
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v7
         with:
           context: services/ml
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/ml:latest
-            ghcr.io/${{ github.repository }}/ml:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
