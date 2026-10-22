@@ -50,6 +50,8 @@ https://github.com/Mlop-bit/AIProject.git
 | `MUSICALYZE_DB_PASSWORD`     | PostgreSQL password |
 | `MUSICALYZE_DB_NAME`         | PostgreSQL database name |
 | `MUSICALYZE_MUSICBRAINZ_CONTACT` | Optional contact address added to the MusicBrainz User-Agent |
+| `MUSICALYZE_API_KEY`         | Shared secret the web backend sends in the `X-API-Key` header of every job request |
+| `MUSICALYZE_MAX_NEW_CANDIDATES` | Optional cap on new recommendation candidates resolved per request (default 150) |
 
 3. Fill in the `.env` file in the project's `apps/web/` folder (a placeholder already exists there - replace the fake value).
 4. Please enter the following variable :
@@ -66,3 +68,19 @@ just migrate    # applies the feature store migrations
 just check      # ruff, pyright and pytest
 ```
 The ML service itself can also run as a container with `docker compose --env-file services/ml/.env --profile ml up`. The end-to-end demo, run from `services/ml` with `uv run python scripts/demo_resolve_track.py [track_id artist title musicbrainz_id]`, resolves a track through Deezer, MusicBrainz, AcousticBrainz and the trained classifier. The classifier is trained with `services/ml/scripts/run_training.py <dataset directory>`.
+
+### Jobs
+
+Reorder, split and recommend run as background jobs stored in PostgreSQL. Start the API (`cd services/ml && uv run uvicorn ml.serving.api.app:app`) and, in another terminal, the worker (`just worker`), which runs on the same machine as the MuQ model. Every request carries the `X-API-Key` header and answers `202` with a job id; `GET /jobs/{job_id}` returns the status, the phase (`resolving` or `computing`), the progress as `done`/`total` and, once finished, the result. `GET /jobs?user_id=...` lists the jobs of one user.
+
+```
+curl -X POST localhost:8000/jobs/reorder -H "X-API-Key: $MUSICALYZE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"user_id": "u1", "tracks": [{"track_id": "t1", "title": "Creep", "artist": "Radiohead"}]}'
+curl -X POST localhost:8000/jobs/split -H "X-API-Key: $MUSICALYZE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"user_id": "u1", "tracks": [...], "k": 3}'
+curl -X POST localhost:8000/jobs/recommend -H "X-API-Key: $MUSICALYZE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"user_id": "u1", "seeds": [...], "candidates": [...], "tags": ["calm"], "limit": 20}'
+curl localhost:8000/jobs/<job_id> -H "X-API-Key: $MUSICALYZE_API_KEY"
+```
+
+Omit `k` to let the system choose the number of playlists. The web backend supplies the candidate tracks for `recommend`; at most `MUSICALYZE_MAX_NEW_CANDIDATES` of them that are not yet in the feature store are resolved per request.
