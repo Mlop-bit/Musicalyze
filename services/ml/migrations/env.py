@@ -6,14 +6,14 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import engine_from_config, pool
 
 from ml.core.config import Settings
-from ml.serving.feature_store.models import Base
+from ml.serving.jobs.models import Job
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+target_metadata = Job.metadata
 
 config.set_main_option("sqlalchemy.url", Settings.model_validate({}).database_url)
 

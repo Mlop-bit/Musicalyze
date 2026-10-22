@@ -24,6 +24,7 @@ def _settings(**overrides: object) -> Settings:
         "db_user": "musicalyze",
         "db_password": "musicalyze",
         "db_name": "musicalyze",
+        "api_key": "test-api-key",
     }
     values.update(overrides)
     return Settings.model_validate(values)
@@ -118,3 +119,35 @@ def test_secret_fields_are_masked_in_repr() -> None:
     assert "s3cr3t" not in dump
     assert "t0ken" not in dump
     assert "s3key" not in dump
+
+
+def test_job_settings_have_defaults() -> None:
+    settings = _settings()
+
+    assert settings.max_new_candidates == 150
+    assert settings.job_lease_minutes == 20
+    assert settings.job_max_attempts == 3
+    assert settings.worker_poll_seconds == 2.0
+
+
+def test_api_key_is_required(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("MUSICALYZE_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValidationError):
+        Settings.model_validate(
+            {
+                "s3_endpoint_url": "https://s3.example.com",
+                "s3_region": "garage",
+                "s3_bucket": "dev-bucket",
+                "s3_access_key": "test-access-key",
+                "s3_secret_key": "test-secret-key",
+                "kv_account_id": _VALID_KV_ACCOUNT_ID,
+                "kv_namespace_id": _VALID_KV_NAMESPACE_ID,
+                "kv_api_token": "test-token",
+                "db_host": "localhost",
+                "db_port": 5432,
+                "db_user": "musicalyze",
+                "db_password": "musicalyze",
+                "db_name": "musicalyze",
+            }
+        )

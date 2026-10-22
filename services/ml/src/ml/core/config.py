@@ -28,11 +28,16 @@ class Settings(BaseSettings):
     db_user: NonEmptyStr
     db_password: SecretStr
     db_name: NonEmptyStr
+    api_key: SecretStr
     musicbrainz_contact: NonEmptyStr | None = None
     acousticbrainz_dump_dir: Path = Path("acousticbrainz-dumps")
     acousticbrainz_extract_dir: Path = Path("acousticbrainz-extracted")
     acousticbrainz_shard_cache_dir: Path = Path("acousticbrainz-shard-cache")
     classifier_cache_dir: Path = Path("classifier-cache")
+    max_new_candidates: int = Field(default=150, ge=0)
+    job_lease_minutes: int = Field(default=20, gt=0)
+    job_max_attempts: int = Field(default=3, gt=0)
+    worker_poll_seconds: float = Field(default=2.0, gt=0)
 
     @property
     def database_url(self) -> str:
