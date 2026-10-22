@@ -10,9 +10,10 @@ from ml.serving.feature_store.repository import (
     get_track_features,
     save_embedding,
     save_enrichment,
+    save_tag_scores,
 )
 
-_TEST_TRACK_IDS = ["missing-track", "track-1", "track-2", "track-3"]
+_TEST_TRACK_IDS = ["missing-track", "track-1", "track-2", "track-3", "track-4"]
 
 
 @pytest.fixture
@@ -95,3 +96,20 @@ def test_save_enrichment_backfills_fields_without_losing_the_embedding(session: 
     assert result.mood_label == "energetic"
     assert result.source == "acousticbrainz"
     assert result.embedding is not None
+
+
+@pytest.mark.live
+def test_save_tag_scores_only_fills_a_null_column(session: Session) -> None:
+    save_embedding(session, "track-4", [0.5] * 1024)
+    session.commit()
+
+    save_tag_scores(session, "track-4", {"calm": 0.9, "dark": 0.1})
+    session.commit()
+    save_tag_scores(session, "track-4", {"calm": 0.0, "dark": 1.0})
+    session.commit()
+    session.expire_all()
+
+    result = get_track_features(session, "track-4")
+
+    assert result is not None
+    assert result.tag_scores == {"calm": 0.9, "dark": 0.1}

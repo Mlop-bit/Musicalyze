@@ -22,5 +22,5 @@ def test_embedding_is_a_required_pgvector_column() -> None:
 
 def test_enrichment_columns_are_nullable() -> None:
     table = TrackFeatures.__table__
-    for name in ("musicbrainz_id", "bpm", "key", "mood_label", "source"):
+    for name in ("musicbrainz_id", "bpm", "key", "mood_label", "source", "tag_scores"):
         assert table.c[name].nullable is True

@@ -76,3 +76,12 @@ def save_classifier_mood(
         )
     )
     session.execute(statement)
+
+
+def save_tag_scores(session: Session, track_id: str, tag_scores: dict[str, float]) -> None:
+    statement = (
+        update(TrackFeatures)
+        .where(TrackFeatures.track_id == track_id, TrackFeatures.tag_scores.is_(None))
+        .values(tag_scores=tag_scores)
+    )
+    session.execute(statement)

@@ -25,4 +25,5 @@ class TrackFeatures(Base):
     voice_instrumental: Mapped[str | None]
     mood_scores: Mapped[dict[str, float] | None] = mapped_column(JSONB(none_as_null=True))
     mood_label: Mapped[str | None]
+    tag_scores: Mapped[dict[str, float] | None] = mapped_column(JSONB(none_as_null=True))
     source: Mapped[str | None]
