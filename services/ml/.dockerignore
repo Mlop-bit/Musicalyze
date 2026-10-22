@@ -8,3 +8,12 @@ models
 *.pyc
 Dockerfile
 .dockerignore
+data
+runs
+scripts
+classifier-cache
+acousticbrainz-dumps
+acousticbrainz-extracted
+acousticbrainz-s3-tmp
+acousticbrainz-shard-cache
+.env
