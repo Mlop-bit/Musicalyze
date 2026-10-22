@@ -1,10 +1,12 @@
-from sqlalchemy import case, func, literal, update
+from sqlalchemy import case, func, literal, or_, select, text, update
 from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.orm import Session
 
 from ml.serving.feature_store.models import TrackFeatures
+from ml.serving.playlist.recommend import Recommendation, merge_best_matches
 
 CLASSIFIER_SOURCE = "classifier"
+TAG_SCORE_THRESHOLD = 0.3
 
 
 def get_track_features(session: Session, track_id: str) -> TrackFeatures | None:
@@ -85,3 +87,38 @@ def save_tag_scores(session: Session, track_id: str, tag_scores: dict[str, float
         .values(tag_scores=tag_scores)
     )
     session.execute(statement)
+
+
+def nearest_tracks(
+    session: Session,
+    seeds: list[list[float]],
+    exclude_ids: list[str],
+    tags: list[str] | None,
+    limit: int,
+    tag_threshold: float = TAG_SCORE_THRESHOLD,
+) -> list[Recommendation]:
+    session.execute(text("SET LOCAL hnsw.iterative_scan = relaxed_order"))
+    matches_per_seed = [
+        _nearest_to_seed(session, seed, exclude_ids, tags, limit, tag_threshold) for seed in seeds
+    ]
+    return merge_best_matches(matches_per_seed, limit)
+
+
+def _nearest_to_seed(
+    session: Session,
+    seed: list[float],
+    exclude_ids: list[str],
+    tags: list[str] | None,
+    limit: int,
+    tag_threshold: float,
+) -> list[Recommendation]:
+    distance = TrackFeatures.embedding.cosine_distance(seed)
+    statement = select(TrackFeatures.track_id, distance.label("distance")).order_by(distance)
+    if exclude_ids:
+        statement = statement.where(TrackFeatures.track_id.not_in(exclude_ids))
+    if tags:
+        statement = statement.where(
+            or_(*[TrackFeatures.tag_scores[tag].as_float() >= tag_threshold for tag in tags])
+        )
+    rows = session.execute(statement.limit(limit)).all()
+    return [Recommendation(track_id=row.track_id, similarity=1.0 - row.distance) for row in rows]

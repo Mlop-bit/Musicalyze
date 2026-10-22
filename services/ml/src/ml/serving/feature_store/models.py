@@ -1,4 +1,5 @@
 from pgvector.sqlalchemy import Vector
+from sqlalchemy import Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -11,6 +12,14 @@ class Base(DeclarativeBase):
 
 class TrackFeatures(Base):
     __tablename__ = "track_features"
+    __table_args__ = (
+        Index(
+            "ix_track_features_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
 
     track_id: Mapped[str] = mapped_column(primary_key=True)
     musicbrainz_id: Mapped[str | None]

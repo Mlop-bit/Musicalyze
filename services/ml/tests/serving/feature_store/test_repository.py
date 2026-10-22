@@ -8,12 +8,22 @@ from ml.core.config import Settings
 from ml.serving.feature_store.models import TrackFeatures
 from ml.serving.feature_store.repository import (
     get_track_features,
+    nearest_tracks,
     save_embedding,
     save_enrichment,
     save_tag_scores,
 )
 
-_TEST_TRACK_IDS = ["missing-track", "track-1", "track-2", "track-3", "track-4"]
+_TEST_TRACK_IDS = [
+    "missing-track",
+    "track-1",
+    "track-2",
+    "track-3",
+    "track-4",
+    "rec-a",
+    "rec-b",
+    "rec-c",
+]
 
 
 @pytest.fixture
@@ -113,3 +123,85 @@ def test_save_tag_scores_only_fills_a_null_column(session: Session) -> None:
 
     assert result is not None
     assert result.tag_scores == {"calm": 0.9, "dark": 0.1}
+
+
+_AXIS = 1000
+
+
+def _unit(*weights: tuple[int, float]) -> list[float]:
+    vector = [0.0] * 1024
+    for index, weight in weights:
+        vector[index] = weight
+    norm = sum(value * value for value in vector) ** 0.5
+    return [value / norm for value in vector]
+
+
+def _store_recommendation_rows(session: Session) -> list[float]:
+    save_embedding(session, "rec-a", _unit((_AXIS, 1.0)))
+    save_embedding(session, "rec-b", _unit((_AXIS, 1.0), (_AXIS + 1, 0.5)))
+    save_embedding(session, "rec-c", _unit((_AXIS + 1, 1.0)))
+    save_tag_scores(session, "rec-a", {"calm": 0.9})
+    save_tag_scores(session, "rec-b", {"calm": 0.2})
+    session.commit()
+    return _unit((_AXIS, 1.0))
+
+
+@pytest.mark.live
+def test_nearest_tracks_orders_by_similarity(session: Session) -> None:
+    centroid = _store_recommendation_rows(session)
+
+    result = nearest_tracks(session, [centroid], exclude_ids=[], tags=None, limit=2)
+
+    assert [item.track_id for item in result] == ["rec-a", "rec-b"]
+    assert result[0].similarity == pytest.approx(1.0)
+    assert result[0].similarity > result[1].similarity
+
+
+@pytest.mark.live
+def test_nearest_tracks_excludes_the_seeds(session: Session) -> None:
+    centroid = _store_recommendation_rows(session)
+
+    result = nearest_tracks(session, [centroid], exclude_ids=["rec-a"], tags=None, limit=1)
+
+    assert [item.track_id for item in result] == ["rec-b"]
+
+
+@pytest.mark.live
+def test_nearest_tracks_filters_by_tag(session: Session) -> None:
+    centroid = _store_recommendation_rows(session)
+
+    result = nearest_tracks(session, [centroid], exclude_ids=[], tags=["calm"], limit=1000)
+    ids = [item.track_id for item in result]
+
+    assert ids[0] == "rec-a"
+    assert "rec-b" not in ids
+    assert "rec-c" not in ids
+
+
+@pytest.mark.live
+def test_nearest_tracks_respects_the_limit(session: Session) -> None:
+    centroid = _store_recommendation_rows(session)
+
+    assert len(nearest_tracks(session, [centroid], exclude_ids=[], tags=None, limit=1)) == 1
+
+
+@pytest.mark.live
+def test_nearest_tracks_without_tag_filter_keeps_rows_without_tag_scores(session: Session) -> None:
+    centroid = _store_recommendation_rows(session)
+
+    result = nearest_tracks(session, [centroid], exclude_ids=[], tags=None, limit=1000)
+
+    assert "rec-c" in [item.track_id for item in result]
+
+
+@pytest.mark.live
+def test_nearest_tracks_ranks_by_the_closest_seed(session: Session) -> None:
+    first = _store_recommendation_rows(session)
+    second = _unit((_AXIS + 1, 1.0))
+
+    result = nearest_tracks(session, [first, second], exclude_ids=[], tags=None, limit=1000)
+    similarity = {item.track_id: item.similarity for item in result}
+
+    assert similarity["rec-a"] == pytest.approx(1.0)
+    assert similarity["rec-c"] == pytest.approx(1.0)
+    assert similarity["rec-b"] > 0.85
