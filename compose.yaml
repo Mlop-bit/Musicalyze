@@ -1,0 +1,33 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${MUSICALYZE_DB_USER:?}
+      POSTGRES_PASSWORD: ${MUSICALYZE_DB_PASSWORD:?}
+      POSTGRES_DB: ${MUSICALYZE_DB_NAME:?}
+    ports:
+      - "${MUSICALYZE_DB_PORT:?}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ml:
+    profiles: ["ml"]
+    build: services/ml
+    env_file: services/ml/.env
+    environment:
+      MUSICALYZE_DB_HOST: db
+      MUSICALYZE_DB_PORT: "5432"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:

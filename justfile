@@ -36,6 +36,9 @@ download-acousticbrainz:
 upload-acousticbrainz-to-s3:
     cd services/ml && uv run python -m ml.serving.acousticbrainz.download_scripts.upload_acousticbrainz_to_s3
 
+db-up:
+    docker compose --env-file services/ml/.env up -d --wait db
+
 migrate:
     cd services/ml && uv run alembic upgrade head
 
