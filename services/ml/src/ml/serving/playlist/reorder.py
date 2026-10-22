@@ -1,10 +1,15 @@
+from collections.abc import Callable
+
 import numpy as np
 from numpy.typing import NDArray
 
 from ml.serving.playlist.distance import bpm_distance, camelot_distance
+from ml.serving.playlist.vectors import normalise_rows
 
 BPM_WEIGHT = 0.15
 KEY_WEIGHT = 0.1
+MAX_IMPROVEMENT_PASSES = 50
+MIN_GAIN = 1e-9
 
 
 def reorder_tracks(
@@ -16,38 +21,74 @@ def reorder_tracks(
 ) -> list[str]:
     if not track_ids:
         return []
-    normalised = _normalise(embeddings)
-    remaining = list(range(len(track_ids)))
-    current = start_index
-    remaining.remove(current)
-    order = [current]
-    while remaining:
-        distances = [
-            _distance(normalised, bpms, keys, current, candidate) for candidate in remaining
-        ]
-        current = remaining[int(np.argmin(distances))]
-        remaining.remove(current)
-        order.append(current)
-    return [track_ids[index] for index in order]
+    distances = _distance_matrix(embeddings, bpms, keys)
+    path = _shorten(distances, _greedy_path(distances, start_index))
+    return [track_ids[index] for index in path]
 
 
-def _normalise(embeddings: NDArray[np.float32]) -> NDArray[np.float32]:
-    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-    return (embeddings / np.where(norms == 0, 1.0, norms)).astype(np.float32)
+def _distance_matrix(
+    embeddings: NDArray[np.float32], bpms: list[float | None], keys: list[str | None]
+) -> NDArray[np.float64]:
+    normalised = normalise_rows(embeddings).astype(np.float64)
+    matrix = 1.0 - normalised @ normalised.T
+    matrix += BPM_WEIGHT * _imputed(_pairwise(bpms, bpm_distance))
+    matrix += KEY_WEIGHT * _imputed(_pairwise(keys, camelot_distance))
+    np.fill_diagonal(matrix, 0.0)
+    return matrix
 
 
-def _distance(
-    normalised: NDArray[np.float32],
-    bpms: list[float | None],
-    keys: list[str | None],
-    current: int,
-    candidate: int,
-) -> float:
-    distance = 1.0 - float(normalised[current] @ normalised[candidate])
-    current_bpm, candidate_bpm = bpms[current], bpms[candidate]
-    if current_bpm is not None and candidate_bpm is not None:
-        distance += BPM_WEIGHT * bpm_distance(current_bpm, candidate_bpm)
-    current_key, candidate_key = keys[current], keys[candidate]
-    if current_key is not None and candidate_key is not None:
-        distance += KEY_WEIGHT * camelot_distance(current_key, candidate_key)
-    return distance
+def _pairwise[T](values: list[T | None], metric: Callable[[T, T], float]) -> NDArray[np.float64]:
+    count = len(values)
+    matrix = np.full((count, count), np.nan)
+    for row, first in enumerate(values):
+        if first is None:
+            continue
+        for column, second in enumerate(values):
+            if second is not None:
+                matrix[row, column] = metric(first, second)
+    return matrix
+
+
+def _imputed(matrix: NDArray[np.float64]) -> NDArray[np.float64]:
+    off_diagonal = ~np.isnan(matrix) & ~np.eye(len(matrix), dtype=bool)
+    if not off_diagonal.any():
+        return np.zeros_like(matrix)
+    return np.where(np.isnan(matrix), matrix[off_diagonal].mean(), matrix)
+
+
+def _greedy_path(distances: NDArray[np.float64], start: int) -> list[int]:
+    visited = np.zeros(len(distances), dtype=bool)
+    visited[start] = True
+    path = [start]
+    current = start
+    for _ in range(len(distances) - 1):
+        current = int(np.argmin(np.where(visited, np.inf, distances[current])))
+        visited[current] = True
+        path.append(current)
+    return path
+
+
+def _shorten(distances: NDArray[np.float64], path: list[int]) -> list[int]:
+    order = np.array(path)
+    count = len(order)
+    for _ in range(MAX_IMPROVEMENT_PASSES):
+        improved = False
+        for first in range(1, count - 1):
+            last = np.arange(first + 1, count)
+            following = order[np.minimum(last + 1, count - 1)]
+            has_following = last < count - 1
+            removed = distances[order[first - 1], order[first]] + np.where(
+                has_following, distances[order[last], following], 0.0
+            )
+            added = distances[order[first - 1], order[last]] + np.where(
+                has_following, distances[order[first], following], 0.0
+            )
+            gain = removed - added
+            best = int(np.argmax(gain))
+            if gain[best] > MIN_GAIN:
+                end = int(last[best])
+                order[first : end + 1] = order[first : end + 1][::-1].copy()
+                improved = True
+        if not improved:
+            break
+    return [int(index) for index in order]

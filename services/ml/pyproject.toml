@@ -119,6 +119,14 @@ reportUnknownMemberType = "none"
 reportUnknownArgumentType = "none"
 
 [[tool.pyright.executionEnvironments]]
+root = "src/ml/serving/playlist/split.py"
+reportMissingTypeStubs = "none"
+reportArgumentType = "none"
+reportUnknownVariableType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownMemberType = "none"
+
+[[tool.pyright.executionEnvironments]]
 root = "src/ml/training/metrics.py"
 reportMissingTypeStubs = "none"
 reportUnknownVariableType = "none"

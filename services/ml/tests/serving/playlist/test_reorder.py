@@ -81,3 +81,53 @@ def test_every_track_appears_exactly_once() -> None:
     order = reorder_tracks(track_ids, embeddings, bpms, keys)
 
     assert sorted(order) == sorted(track_ids)
+
+
+def test_unknown_tempo_does_not_beat_a_close_known_tempo() -> None:
+    embeddings = _embeddings([0.0, 0.2, 0.2, 0.2])
+
+    order = reorder_tracks(
+        ["start", "unknown", "close", "far"],
+        embeddings,
+        [120.0, None, 118.0, 60.0],
+        [None] * 4,
+    )
+
+    assert order[1] == "close"
+
+
+def _greedy_length(embeddings: NDArray[np.float32]) -> float:
+    normalised = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+    distances = 1.0 - normalised @ normalised.T
+    remaining = set(range(1, len(embeddings)))
+    current, total = 0, 0.0
+    while remaining:
+        following = min(remaining, key=lambda candidate: distances[current, candidate])
+        total += float(distances[current, following])
+        remaining.remove(following)
+        current = following
+    return total
+
+
+def _path_length(embeddings: NDArray[np.float32], order: list[str]) -> float:
+    normalised = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+    indices = [int(name) for name in order]
+    return float(
+        sum(1.0 - normalised[a] @ normalised[b] for a, b in zip(indices, indices[1:], strict=False))
+    )
+
+
+def test_improvement_step_never_lengthens_the_greedy_path() -> None:
+    shorter = 0
+    for seed in range(10):
+        embeddings = np.random.default_rng(seed).normal(size=(25, _DIM)).astype(np.float32)
+        track_ids = [str(index) for index in range(25)]
+        bpms, keys = _no_metadata(25)
+
+        order = reorder_tracks(track_ids, embeddings, bpms, keys)
+
+        assert order[0] == "0"
+        length, greedy = _path_length(embeddings, order), _greedy_length(embeddings)
+        assert length <= greedy + 1e-6
+        shorter += length < greedy - 1e-6
+    assert shorter > 0
