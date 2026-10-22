@@ -1,12 +1,12 @@
 # Musicalyze
 
 ## Problem statement
-??
+Spotify removed its Audio Features, Audio Analysis, Recommendations and Related Artists endpoints for new applications in November 2024. Musicalyze investigates how acoustic and semantic track information can be reconstructed independently from public data and audio previews, and how it can be used to split, reorder and recommend playlist tracks.
 
 ## Background
 The ubiquity of streaming music has led users to accumulate extensive, unstructured track libraries. These collections typically lack stylistic coherence and optimal sequencing, complicating both playlist curation and targeted music discovery. This challenge is currently exacerbated by API restrictions: as of November 2024, Spotify deprecated the endpoints providing acoustic features (e.g., tempo, energy, key) and algorithmic recommendations for new applications. Consequently, external applications can no longer rely on native platform metadata for audio analysis.
 
-This project proposes a Spotify-integrated web application that independently reconstructs this acoustic metadata to circumvent current API limitations. The architecture combines an open-source pretrained music model (MuQ) with public datasets (AcousticBrainz, MTG-Jamendo), Leveraging this consolidated data, the application automatically segments playlists into mood-coherent subsets, computes optimal track sequences, and generates targeted recommendations. These functions are driven by a custom-trained mood and genre classifier, establishing a self-sufficient Music Information Retrieval (MIR) pipeline independent of proprietary third-party services.
+This project proposes a Spotify-integrated web application that independently reconstructs this acoustic metadata to circumvent current API limitations. The architecture combines an open-source pretrained music model (MuQ) with public datasets (AcousticBrainz, MTG-Jamendo). Leveraging this consolidated data, the application automatically segments playlists into mood-coherent subsets, computes optimal track sequences, and generates targeted recommendations. These functions are driven by a custom-trained mood and genre classifier, establishing a self-sufficient Music Information Retrieval (MIR) pipeline independent of proprietary third-party services.
 
 
 ## Objectives
@@ -19,7 +19,10 @@ This project proposes a Spotify-integrated web application that independently re
 - ?
 
 ## Prerequisites
-??
+- Python 3.13 with [`uv`](https://docs.astral.sh/uv/) and [`just`](https://just.systems/)
+- Node.js 20.9 or later with `pnpm`
+- PostgreSQL with the `pgvector` extension
+- An S3-compatible bucket (the project uses a self-hosted Garage instance) and a Cloudflare Workers KV namespace
 
 ## Installation
 To install this project, simply clone the repository using the following command:
@@ -41,6 +44,12 @@ https://github.com/Mlop-bit/AIProject.git
 | `MUSICALYZE_KV_ACCOUNT_ID`   |             |
 | `MUSICALYZE_KV_NAMESPACE_ID` |             |
 | `MUSICALYZE_KV_API_TOKEN`    |             |
+| `MUSICALYZE_DB_HOST`         | PostgreSQL host of the feature store |
+| `MUSICALYZE_DB_PORT`         | PostgreSQL port |
+| `MUSICALYZE_DB_USER`         | PostgreSQL user |
+| `MUSICALYZE_DB_PASSWORD`     | PostgreSQL password |
+| `MUSICALYZE_DB_NAME`         | PostgreSQL database name |
+| `MUSICALYZE_MUSICBRAINZ_CONTACT` | Optional contact address added to the MusicBrainz User-Agent |
 
 3. Fill in the `.env` file in the project's `apps/web/` folder (a placeholder already exists there - replace the fake value).
 4. Please enter the following variable :
@@ -50,4 +59,9 @@ https://github.com/Mlop-bit/AIProject.git
 | `MUSICALYZE_GITHUB_TOKEN`      | Classic GitHub PAT with the `repo` scope, generated from your own account, used to read commit history for the `/changelog` page. Fine-grained PATs only work here if you're an org member with fine-grained access enabled; collaborators on another user's personal repo must use a classic token. |
 
 ## Project launch
-??
+```
+just sync       # installs the Python environment (cpu or cu130 extra, auto-detected)
+just migrate    # applies the feature store migrations
+just check      # ruff, pyright and pytest
+```
+The end-to-end demo `services/ml/scripts/demo_resolve_track.py` resolves a track through Deezer, MusicBrainz, AcousticBrainz and the trained classifier. The classifier is trained with `services/ml/scripts/run_training.py <dataset directory>`.
