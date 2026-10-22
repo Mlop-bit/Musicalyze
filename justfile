@@ -47,3 +47,6 @@ migration message:
 
 install-hooks:
     cd services/ml && uv run pre-commit install
+
+worker:
+    cd services/ml && uv run python -m ml.worker

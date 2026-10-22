@@ -53,6 +53,12 @@ def set_phase(session: Session, job_id: uuid.UUID, phase: JobPhase, total: int) 
     )
 
 
+def set_progress(session: Session, job_id: uuid.UUID, done: int, total: int) -> None:
+    session.execute(
+        update(Job).where(Job.id == job_id).values(done=done, total=total, locked_at=func.now())
+    )
+
+
 def increment_done(session: Session, job_id: uuid.UUID) -> None:
     session.execute(
         update(Job).where(Job.id == job_id).values(done=Job.done + 1, locked_at=func.now())

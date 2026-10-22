@@ -16,6 +16,7 @@ from ml.serving.jobs.repository import (
     increment_done,
     list_jobs,
     set_phase,
+    set_progress,
 )
 
 _USER = "test-user"
@@ -179,3 +180,15 @@ def test_list_jobs_filters_by_user_newest_first(session: Session) -> None:
     jobs = list_jobs(session, _USER)
 
     assert [job.id for job in jobs] == [newer.id, older.id]
+
+
+@pytest.mark.live
+def test_set_progress_overwrites_done_and_total(session: Session) -> None:
+    job = enqueue_job(session, _USER, JobKind.SPLIT, {})
+    session.commit()
+
+    set_progress(session, job.id, done=4, total=9)
+    session.commit()
+    session.refresh(job)
+
+    assert (job.done, job.total) == (4, 9)
