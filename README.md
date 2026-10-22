@@ -21,7 +21,7 @@ This project proposes a Spotify-integrated web application that independently re
 ## Prerequisites
 - Python 3.13 with [`uv`](https://docs.astral.sh/uv/) and [`just`](https://just.systems/)
 - Node.js 20.9 or later with `pnpm`
-- PostgreSQL with the `pgvector` extension
+- Docker (for the PostgreSQL + `pgvector` database defined in `compose.yaml`), or your own PostgreSQL with the `pgvector` extension
 - An S3-compatible bucket (the project uses a self-hosted Garage instance) and a Cloudflare Workers KV namespace
 
 ## Installation
@@ -60,8 +60,9 @@ https://github.com/Mlop-bit/AIProject.git
 
 ## Project launch
 ```
+just db-up      # starts the PostgreSQL + pgvector container using the MUSICALYZE_DB_* values of services/ml/.env
 just sync       # installs the Python environment (cpu or cu130 extra, auto-detected)
 just migrate    # applies the feature store migrations
 just check      # ruff, pyright and pytest
 ```
-The end-to-end demo `services/ml/scripts/demo_resolve_track.py` resolves a track through Deezer, MusicBrainz, AcousticBrainz and the trained classifier. The classifier is trained with `services/ml/scripts/run_training.py <dataset directory>`.
+The ML service itself can also run as a container with `docker compose --env-file services/ml/.env --profile ml up`. The end-to-end demo, run from `services/ml` with `uv run python scripts/demo_resolve_track.py [track_id artist title musicbrainz_id]`, resolves a track through Deezer, MusicBrainz, AcousticBrainz and the trained classifier. The classifier is trained with `services/ml/scripts/run_training.py <dataset directory>`.
