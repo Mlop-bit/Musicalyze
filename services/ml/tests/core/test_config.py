@@ -103,6 +103,7 @@ def test_tolerates_unprefixed_keys_in_env_file_belonging_to_other_tools(tmp_path
         "MUSICALYZE_DB_USER=musicalyze\n"
         "MUSICALYZE_DB_PASSWORD=musicalyze\n"
         "MUSICALYZE_DB_NAME=musicalyze\n"
+        "MUSICALYZE_API_KEY=test-api-key\n"
         "HF_TOKEN=hf_some_token_owned_by_huggingface_hub_not_us\n"
     )
 

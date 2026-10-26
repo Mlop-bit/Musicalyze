@@ -27,6 +27,7 @@ def _settings(contact: str | None = None) -> Settings:
         "db_user": "musicalyze",
         "db_password": "musicalyze",
         "db_name": "musicalyze",
+        "api_key": "test-api-key",
     }
     if contact is not None:
         values["musicbrainz_contact"] = contact

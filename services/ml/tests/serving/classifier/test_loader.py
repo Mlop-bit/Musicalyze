@@ -25,6 +25,7 @@ def _settings(cache_dir: Path) -> Settings:
             "db_user": "musicalyze",
             "db_password": "musicalyze",
             "db_name": "musicalyze",
+            "api_key": "test-api-key",
             "classifier_cache_dir": cache_dir,
         }
     )
