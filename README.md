@@ -53,12 +53,23 @@ https://github.com/Mlop-bit/AIProject.git
 | `MUSICALYZE_API_KEY`         | Shared secret the web backend sends in the `X-API-Key` header of every job request |
 | `MUSICALYZE_MAX_NEW_CANDIDATES` | Optional cap on new recommendation candidates resolved per request (default 150) |
 
-3. Fill in the `.env` file in the project's `apps/web/` folder (a placeholder already exists there - replace the fake value).
+3. Create an `.env` file in the project's `apps/web/` folder and add the web app credentials below. This file is intentionally ignored by Git, so it is not included in the repository.
 4. Please enter the following variable :
 
 | Variable                      | Description |
 | ------------------------------ | ----------- |
-| `MUSICALYZE_GITHUB_TOKEN`      | Classic GitHub PAT with the `repo` scope, generated from your own account, used to read commit history for the `/changelog` page. Fine-grained PATs only work here if you're an org member with fine-grained access enabled; collaborators on another user's personal repo must use a classic token. |
+| `MUSICALYZE_GITHUB_TOKEN`      | GitHub PAT used to read commit history for the `/changelog` page. |
+| `BETTER_AUTH_SECRET` | Random secret used by Better Auth to secure sessions. |
+| `BETTER_AUTH_URL` | Local URL: `http://127.0.0.1:3000`. |
+| `SPOTIFY_CLIENT_ID` | Client ID from your Spotify Developer app. |
+| `SPOTIFY_CLIENT_SECRET` | Client Secret from your Spotify Developer app. |
+| `DATABASE_URL` | PostgreSQL URL used by the web app, for example `postgresql://postgres:postgres@localhost:5432/musicalyze`. |
+
+In the Spotify Developer Dashboard, register this exact redirect URI for local development: `http://127.0.0.1:3000/api/auth/callback/spotify`. Open the site at `http://127.0.0.1:3000` during sign-in so the redirect host matches. The app requests read access to private and collaborative playlists.
+
+Spotify apps in Development Mode have access restrictions. The account owner must have Premium, and Spotify currently limits the app to five allowlisted users. Add test users in the app's User Management settings if they receive a `403` response.
+
+This integration only displays playlists and track details, with links back to Spotify. Spotify's current API terms prohibit ingesting Spotify content into AI/ML models, so this page does not send Spotify tracks to the Musicalyze ML service.
 
 ## Project launch
 ```
@@ -68,6 +79,8 @@ just migrate    # applies the feature store migrations
 just check      # ruff, pyright and pytest
 ```
 The ML service itself can also run as a container with `docker compose --env-file services/ml/.env --profile ml up`. The end-to-end demo, run from `services/ml` with `uv run python scripts/demo_resolve_track.py [track_id artist title musicbrainz_id]`, resolves a track through Deezer, MusicBrainz, AcousticBrainz and the trained classifier. The classifier is trained with `services/ml/scripts/run_training.py <dataset directory>`.
+
+The web home page lets a user sign in with Spotify and browse their playlists and tracks. Start PostgreSQL, apply the Prisma Better Auth migration with `corepack pnpm --filter @musicalyze/db exec prisma migrate deploy`, then run the web app from the repository root with `corepack pnpm --filter web dev` and open `http://127.0.0.1:3000`.
 
 ### Jobs
 

@@ -20,9 +20,12 @@ def resolve_track(
     artist: str | None = None,
     title: str | None = None,
     musicbrainz_id: str | None = None,
+    query: str | None = None,
 ) -> None:
     try:
-        deezer_track = search_deezer_track(settings, isrc=isrc, artist=artist, track=title)
+        deezer_track = search_deezer_track(
+            settings, isrc=isrc, artist=artist, track=title, query=query
+        )
         if deezer_track is not None and deezer_track["preview_url"] is not None:
             save_track_embedding_from_preview(
                 session,

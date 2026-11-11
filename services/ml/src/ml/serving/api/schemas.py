@@ -22,6 +22,23 @@ class RecommendRequest(RecommendPayload):
     user_id: UserId
 
 
+class TrackSearchRequest(BaseModel):
+    query: str | None = Field(default=None, min_length=1)
+    artist: str | None = Field(default=None, min_length=1)
+    title: str | None = Field(default=None, min_length=1)
+    musicbrainz_id: str | None = Field(default=None, min_length=1)
+
+
+class TrackSearchResult(BaseModel):
+    track_id: str
+    musicbrainz_id: str | None
+    bpm: float | None
+    key: str | None
+    mood_label: str | None
+    mood_scores: dict[str, float] | None
+    source: str | None
+
+
 class JobCreated(BaseModel):
     job_id: uuid.UUID
 
