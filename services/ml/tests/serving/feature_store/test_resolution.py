@@ -45,7 +45,9 @@ def test_resolve_track_saves_embedding_when_a_preview_is_found() -> None:
     ):
         resolve_track(fake_session, _settings(), "track-1", isrc="isrc-1", artist="A", title="T")
 
-    mock_search.assert_called_once_with(_settings(), isrc="isrc-1", artist="A", track="T")
+    mock_search.assert_called_once_with(
+        _settings(), isrc="isrc-1", artist="A", track="T", query=None
+    )
     mock_save_embedding.assert_called_once_with(
         fake_session, "track-1", "https://example.com/preview.mp3", duration_sec=245
     )

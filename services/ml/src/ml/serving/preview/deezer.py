@@ -8,10 +8,7 @@ from ml.core.config import Settings
 
 BASE_URL = "https://api.deezer.com"
 TIMEOUT = 10.0
-# Deezer signs preview URLs with a short-lived expiry, so caching a search
-# result longer than that would serve back a dead link.
 SEARCH_CACHE_TTL_SECONDS = 120
-# Deezer's API blocks requests carrying a generic HTTP client user agent.
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -120,15 +117,12 @@ def _to_deezer_track(data: dict[str, Any], method: str) -> DeezerTrack:
         isrc=data.get("isrc"),
         title=data.get("title"),
         artist=data.get("artist", {}).get("name"),
-        # Deezer reports 0 when the label never submitted a BPM for this track.
         bpm=data.get("bpm") or None,
         duration_sec=data.get("duration"),
         release_date=data.get("release_date"),
-        # Deezer's own popularity scale: 0 to 1,000,000, where 1,000,000 is the best rank.
         popularity_rank=data.get("rank"),
         explicit_lyrics=data.get("explicit_lyrics"),
         gain_db=data.get("gain"),
         genres=genres,
-        # Deezer preview URLs are geo/licensing-restricted and are frequently missing or dead.
         preview_url=data.get("preview"),
     )

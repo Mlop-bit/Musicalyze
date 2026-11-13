@@ -43,7 +43,8 @@ def search_track(
     if row is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
-            "No audio features were found for this track. Try another search or add a MusicBrainz ID.",
+            "No audio features were found for this track. "
+            "Try another search or add a MusicBrainz ID.",
         )
     return TrackSearchResult(
         track_id=row.track_id,
