@@ -24,7 +24,7 @@ def _job(kind: JobKind, payload: dict[str, object]) -> Job:
 
 
 def _features(vector: list[float], tags: dict[str, float] | None = None) -> SimpleNamespace:
-    return SimpleNamespace(embedding=vector, bpm=None, key=None, tag_scores=tags)
+    return SimpleNamespace(embedding=vector, bpm=None, key=None, tag_scores=tags, mood_label=None)
 
 
 def _settings(max_new_candidates: int = 150) -> MagicMock:
@@ -70,7 +70,34 @@ def test_reorder_job_returns_the_new_order_and_skipped_tracks() -> None:
     ):
         result = run_job(MagicMock(), _settings(), job)
 
-    assert result == {"order": ["a", "c", "b"], "skipped": ["d"]}
+    assert result["order"] == ["a", "c", "b"]
+    assert result["skipped"] == ["d"]
+    assert result["mode"] == "similarity"
+    assert [detail["track_id"] for detail in result["details"]] == ["a", "c", "b"]
+
+
+def test_reorder_job_in_ramp_mode_sorts_by_energy_and_reports_details() -> None:
+    table = {
+        "a": _features([1.0, 0.0, 0.0, 0.0], {"energetic": 0.6}),
+        "b": _features([0.0, 1.0, 0.0, 0.0], {"calm": 0.7}),
+        "c": _features([0.0, 0.0, 1.0, 0.0], {"love": 0.4}),
+    }
+    job = _job(
+        JobKind.REORDER,
+        {"tracks": [_descriptor(t) for t in "abc"], "mode": "calm_to_energetic"},
+    )
+
+    with (
+        patch(f"{_MODULE}.resolve_tracks", return_value=_outcome(["a", "b", "c"])),
+        patch(f"{_MODULE}.get_track_features", side_effect=_lookup(table)),
+        patch(f"{_MODULE}.set_phase"),
+        patch(f"{_MODULE}.set_progress"),
+    ):
+        result = run_job(MagicMock(), _settings(), job)
+
+    assert result["order"] == ["b", "c", "a"]
+    assert result["mode"] == "calm_to_energetic"
+    assert [detail["energy"] for detail in result["details"]] == [-0.7, 0.0, 0.6]
 
 
 def test_split_job_returns_clusters_and_k() -> None:

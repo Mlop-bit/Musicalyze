@@ -53,3 +53,9 @@ def test_recommend_payload_defaults() -> None:
 def test_recommend_payload_rejects_zero_limit() -> None:
     with pytest.raises(ValidationError):
         RecommendPayload.model_validate({"seeds": [_TRACK], "candidates": [], "limit": 0})
+
+
+def test_reorder_payload_defaults_to_similarity_and_rejects_unknown_modes() -> None:
+    assert ReorderPayload(tracks=[]).mode == "similarity"
+    with pytest.raises(ValidationError):
+        ReorderPayload.model_validate({"tracks": [], "mode": "random"})

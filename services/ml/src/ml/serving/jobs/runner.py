@@ -16,6 +16,8 @@ from ml.serving.jobs.payloads import (
 )
 from ml.serving.jobs.repository import set_phase, set_progress
 from ml.serving.jobs.track_resolution import ResolutionOutcome, resolve_tracks
+from ml.serving.playlist.energy import energy_score
+from ml.serving.playlist.ramp import ramp_tracks
 from ml.serving.playlist.reorder import reorder_tracks
 from ml.serving.playlist.split import split_tracks
 
@@ -65,24 +67,48 @@ def _embeddings(features: list[TrackFeatures]) -> NDArray[np.float32]:
     return np.array([list(item.embedding) for item in features], dtype=np.float32)
 
 
-def _run_reorder(
-    session: Session, settings: Settings, job: Job, payload: ReorderPayload
-) -> dict[str, Any]:
-    outcome = _resolve(session, settings, job, payload.tracks)
-    _begin_computing(session, job)
-    features = _load_features(session, outcome.resolved_ids)
+def _order_by_mode(features: list[TrackFeatures], payload: ReorderPayload) -> list[str]:
     track_ids = [item.track_id for item in features]
+    if payload.mode != "similarity":
+        energies = [energy_score(item.tag_scores) for item in features]
+        return ramp_tracks(track_ids, energies, descending=payload.mode == "energetic_to_calm")
     start_index = (
         track_ids.index(payload.start_track_id) if payload.start_track_id in track_ids else 0
     )
-    order = reorder_tracks(
+    return reorder_tracks(
         track_ids,
         _embeddings(features),
         [item.bpm for item in features],
         [item.key for item in features],
         start_index=start_index,
     )
-    return {"order": order, "skipped": outcome.skipped_ids}
+
+
+def _track_details(features: list[TrackFeatures], order: list[str]) -> list[dict[str, Any]]:
+    by_id = {item.track_id: item for item in features}
+    return [
+        {
+            "track_id": track_id,
+            "mood_label": by_id[track_id].mood_label,
+            "energy": energy_score(by_id[track_id].tag_scores),
+        }
+        for track_id in order
+    ]
+
+
+def _run_reorder(
+    session: Session, settings: Settings, job: Job, payload: ReorderPayload
+) -> dict[str, Any]:
+    outcome = _resolve(session, settings, job, payload.tracks)
+    _begin_computing(session, job)
+    features = _load_features(session, outcome.resolved_ids)
+    order = _order_by_mode(features, payload)
+    return {
+        "order": order,
+        "skipped": outcome.skipped_ids,
+        "details": _track_details(features, order),
+        "mode": payload.mode,
+    }
 
 
 def _run_split(

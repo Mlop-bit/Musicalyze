@@ -1,8 +1,10 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 TrackId = Annotated[str, Field(min_length=1)]
+
+ReorderMode = Literal["similarity", "calm_to_energetic", "energetic_to_calm"]
 
 
 class StrictModel(BaseModel):
@@ -20,6 +22,7 @@ class TrackDescriptor(StrictModel):
 class ReorderPayload(StrictModel):
     tracks: list[TrackDescriptor]
     start_track_id: str | None = None
+    mode: ReorderMode = "similarity"
 
 
 class SplitPayload(StrictModel):
