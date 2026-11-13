@@ -22,11 +22,16 @@ DEFAULT_RETRY_ATTEMPTS = 3
 DEFAULT_DOWNLOAD_WORKERS = 4
 PRESIGNED_URL_EXPIRY_SECONDS = 3600
 DOWNLOAD_TIMEOUT_SECONDS = 30.0
+STREAM_BLOCK_BYTES = 1 << 20
 _DATASETS = ((HIGHLEVEL_DIR_NAME, "highlevel"), (LOWLEVEL_DIR_NAME, "lowlevel"))
 
 
-def _shard_marker(cache_dir: Path, shard: str) -> Path:
-    return cache_dir / f".{shard}.synced"
+def _shard_marker(cache_dir: Path, shard: str, level: str) -> Path:
+    return cache_dir / f".{shard}.{level}.synced"
+
+
+def _wanted_datasets(include_lowlevel: bool) -> tuple[tuple[str, str], ...]:
+    return _DATASETS if include_lowlevel else _DATASETS[:1]
 
 
 def _download_and_unpack_chunk(
@@ -38,9 +43,11 @@ def _download_and_unpack_chunk(
         Params={"Bucket": bucket, "Key": key},
         ExpiresIn=PRESIGNED_URL_EXPIRY_SECONDS,
     )
-    response = httpx.get(url, timeout=DOWNLOAD_TIMEOUT_SECONDS)
-    response.raise_for_status()
-    chunk_path.write_bytes(response.content)
+    with httpx.stream("GET", url, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+        response.raise_for_status()
+        with chunk_path.open("wb") as chunk_file:
+            for block in response.iter_bytes(STREAM_BLOCK_BYTES):
+                chunk_file.write(block)
     unpack_shard(chunk_path, destination_dir)
     chunk_path.unlink()
 
@@ -105,12 +112,24 @@ def _download_and_unpack_shard(
 
 def _evict_lru_shards(cache_dir: Path, max_cached_shards: int) -> None:
     markers = sorted(cache_dir.glob(".*.synced"), key=lambda path: path.stat().st_mtime)
+    dataset_dir_by_level = {level: dir_name for dir_name, level in _DATASETS}
     while len(markers) > max_cached_shards:
         oldest = markers.pop(0)
-        shard = oldest.name.removeprefix(".").removesuffix(".synced")
-        for dataset_dir_name, level in _DATASETS:
-            shutil.rmtree(cache_dir / dataset_dir_name / level / shard, ignore_errors=True)
+        shard, level = oldest.name.removeprefix(".").removesuffix(".synced").split(".")
+        shutil.rmtree(cache_dir / dataset_dir_by_level[level] / level / shard, ignore_errors=True)
         oldest.unlink()
+
+
+def _missing_datasets(mbid: str, cache_dir: Path, include_lowlevel: bool) -> list[tuple[str, str]]:
+    shard = mbid[:2]
+    missing: list[tuple[str, str]] = []
+    for dataset_dir_name, level in _wanted_datasets(include_lowlevel):
+        marker = _shard_marker(cache_dir, shard, level)
+        if marker.exists():
+            marker.touch()
+        else:
+            missing.append((dataset_dir_name, level))
+    return missing
 
 
 def ensure_shard_cached(
@@ -123,14 +142,14 @@ def ensure_shard_cached(
     attempts: int = DEFAULT_RETRY_ATTEMPTS,
     sleep: Callable[[float], None] = time.sleep,
     max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
+    include_lowlevel: bool = False,
 ) -> None:
     shard = mbid[:2]
-    marker = _shard_marker(cache_dir, shard)
-    if marker.exists():
-        marker.touch()
+    missing = _missing_datasets(mbid, cache_dir, include_lowlevel)
+    if not missing:
         return
 
-    for dataset_dir_name, level in _DATASETS:
+    for dataset_dir_name, level in missing:
         destination = cache_dir / dataset_dir_name / level / shard
         _download_and_unpack_shard(
             client,
@@ -144,9 +163,8 @@ def ensure_shard_cached(
             sleep,
             max_workers,
         )
-
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    marker.touch()
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        _shard_marker(cache_dir, shard, level).touch()
     _evict_lru_shards(cache_dir, max_cached_shards)
 
 
@@ -160,7 +178,11 @@ def get_acousticbrainz_data_from_s3(
     attempts: int = DEFAULT_RETRY_ATTEMPTS,
     sleep: Callable[[float], None] = time.sleep,
     max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
+    download_missing: bool = True,
+    include_lowlevel: bool = False,
 ) -> AcousticBrainzData:
+    if not download_missing and _missing_datasets(mbid, cache_dir, include_lowlevel):
+        return AcousticBrainzData(highlevel=None, lowlevel=None)
     ensure_shard_cached(
         mbid,
         cache_dir,
@@ -171,6 +193,7 @@ def get_acousticbrainz_data_from_s3(
         attempts,
         sleep,
         max_workers,
+        include_lowlevel,
     )
     try:
         return get_acousticbrainz_data(mbid, cache_dir)

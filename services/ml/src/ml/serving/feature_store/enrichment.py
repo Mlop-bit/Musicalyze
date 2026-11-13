@@ -10,8 +10,6 @@ from ml.serving.feature_store.repository import save_enrichment
 SOURCE = "acousticbrainz"
 
 MOOD_NAMES = ("acoustic", "aggressive", "electronic", "happy", "party", "relaxed", "sad")
-# Below this probability, the dominant mood classifier isn't confident enough to
-# promote to the track's single mood_label.
 MOOD_LABEL_CONFIDENCE_THRESHOLD = 0.6
 
 
@@ -89,7 +87,14 @@ def save_acousticbrainz_enrichment(
 ) -> None:
     cache_dir = settings.acousticbrainz_shard_cache_dir
     data = get_acousticbrainz_data_from_s3(
-        musicbrainz_id, cache_dir, s3_client(settings), settings.s3_bucket, cache_dir / ".tmp"
+        musicbrainz_id,
+        cache_dir,
+        s3_client(settings),
+        settings.s3_bucket,
+        cache_dir / ".tmp",
+        max_cached_shards=settings.acousticbrainz_max_cached_shards,
+        download_missing=settings.acousticbrainz_download_missing_shards,
+        include_lowlevel=settings.acousticbrainz_include_lowlevel,
     )
     mood_scores = _mood_scores(data["highlevel"])
 

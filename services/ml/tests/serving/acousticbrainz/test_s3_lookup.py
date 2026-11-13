@@ -1,4 +1,6 @@
 import json
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -46,15 +48,16 @@ def _fake_client(objects_by_key: dict[str, bytes], monkeypatch: pytest.MonkeyPat
     ) -> str:
         return f"https://fake-s3.test/{Params['Key']}"
 
-    def fake_get(url: str, timeout: float) -> MagicMock:
+    @contextmanager
+    def fake_stream(method: str, url: str, timeout: float) -> Generator[MagicMock]:
         key = url.removeprefix("https://fake-s3.test/")
         response = MagicMock()
-        response.content = objects_by_key[key]
-        return response
+        response.iter_bytes.return_value = iter([objects_by_key[key]])
+        yield response
 
     client.list_objects_v2.side_effect = list_objects_v2
     client.generate_presigned_url.side_effect = generate_presigned_url
-    monkeypatch.setattr("ml.serving.acousticbrainz.s3_lookup.httpx.get", fake_get)
+    monkeypatch.setattr("ml.serving.acousticbrainz.s3_lookup.httpx.stream", fake_stream)
     return client
 
 
@@ -67,7 +70,7 @@ def test_ensure_shard_cached_downloads_and_unpacks_both_datasets(
     client = _fake_client(objects, monkeypatch)
     cache_dir = tmp_path / "cache"
 
-    ensure_shard_cached(MBID, cache_dir, client, "bucket", tmp_path / "work")
+    ensure_shard_cached(MBID, cache_dir, client, "bucket", tmp_path / "work", include_lowlevel=True)
 
     filename = f"{MBID}-0.json"
     highlevel_file = cache_dir / HIGHLEVEL_DIR_NAME / "highlevel" / SHARD / SUBSHARD / filename
@@ -85,8 +88,10 @@ def test_ensure_shard_cached_is_a_no_op_when_already_cached(
     client = _fake_client(objects, monkeypatch)
     cache_dir = tmp_path / "cache"
 
-    ensure_shard_cached(MBID, cache_dir, client, "bucket", tmp_path / "work")
-    ensure_shard_cached(MBID, cache_dir, client, "bucket", tmp_path / "work")
+    for _ in range(2):
+        ensure_shard_cached(
+            MBID, cache_dir, client, "bucket", tmp_path / "work", include_lowlevel=True
+        )
 
     assert client.list_objects_v2.call_count == 2
 
@@ -211,3 +216,33 @@ def test_get_acousticbrainz_data_from_s3_populates_cache_then_returns_data(
 
     assert result["highlevel"] == {"a": 1}
     assert result["lowlevel"] is None
+
+
+def test_get_acousticbrainz_data_from_s3_skips_download_when_shard_missing_and_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    objects = _seed_bucket_with_shard(tmp_path, HIGHLEVEL_DIR_NAME, "highlevel", {"a": 1})
+    client = _fake_client(objects, monkeypatch)
+
+    result = get_acousticbrainz_data_from_s3(
+        MBID, tmp_path / "cache", client, "bucket", tmp_path / "work", download_missing=False
+    )
+
+    assert result == {"highlevel": None, "lowlevel": None}
+    client.list_objects_v2.assert_not_called()
+
+
+def test_ensure_shard_cached_downloads_only_highlevel_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    objects: dict[str, bytes] = {}
+    objects.update(_seed_bucket_with_shard(tmp_path, HIGHLEVEL_DIR_NAME, "highlevel", {"a": 1}))
+    objects.update(_seed_bucket_with_shard(tmp_path, LOWLEVEL_DIR_NAME, "lowlevel", {"b": 2}))
+    client = _fake_client(objects, monkeypatch)
+    cache_dir = tmp_path / "cache"
+
+    ensure_shard_cached(MBID, cache_dir, client, "bucket", tmp_path / "work")
+
+    assert client.list_objects_v2.call_count == 1
+    assert (cache_dir / HIGHLEVEL_DIR_NAME / "highlevel" / SHARD).is_dir()
+    assert not (cache_dir / LOWLEVEL_DIR_NAME).exists()

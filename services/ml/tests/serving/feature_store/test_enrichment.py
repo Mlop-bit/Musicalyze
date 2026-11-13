@@ -54,6 +54,9 @@ def test_saves_bpm_and_key_from_lowlevel_data_with_mood_left_null_without_highle
         fake_client,
         settings.s3_bucket,
         settings.acousticbrainz_shard_cache_dir / ".tmp",
+        max_cached_shards=settings.acousticbrainz_max_cached_shards,
+        download_missing=settings.acousticbrainz_download_missing_shards,
+        include_lowlevel=settings.acousticbrainz_include_lowlevel,
     )
     mock_save_enrichment.assert_called_once_with(
         fake_session,

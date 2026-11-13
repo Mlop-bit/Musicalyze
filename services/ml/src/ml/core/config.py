@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     acousticbrainz_dump_dir: Path = Path("acousticbrainz-dumps")
     acousticbrainz_extract_dir: Path = Path("acousticbrainz-extracted")
     acousticbrainz_shard_cache_dir: Path = Path("acousticbrainz-shard-cache")
+    acousticbrainz_download_missing_shards: bool = True
+    acousticbrainz_include_lowlevel: bool = False
+    acousticbrainz_max_cached_shards: int = Field(default=16, gt=0)
     classifier_cache_dir: Path = Path("classifier-cache")
     max_new_candidates: int = Field(default=150, ge=0)
     job_lease_minutes: int = Field(default=20, gt=0)
