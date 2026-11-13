@@ -5,7 +5,10 @@ export async function POST(request: Request) {
   const apiKey = process.env.MUSICALYZE_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { detail: "Track search is not configured. Set MUSICALYZE_API_KEY in the web environment." },
+      {
+        detail:
+          "Track search is not configured. Set MUSICALYZE_API_KEY in the web environment.",
+      },
       { status: 503 },
     );
   }
@@ -14,7 +17,10 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ detail: "Invalid search request." }, { status: 400 });
+    return NextResponse.json(
+      { detail: "Invalid search request." },
+      { status: 400 },
+    );
   }
 
   try {
@@ -24,8 +30,20 @@ export async function POST(request: Request) {
       body: JSON.stringify(body),
       cache: "no-store",
     });
-    const data: unknown = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    if (!response.ok) {
+      const failure = (await response.json().catch(() => null)) as {
+        detail?: string;
+      } | null;
+      return NextResponse.json(
+        {
+          detail:
+            failure?.detail ??
+            `The analysis service answered HTTP ${response.status}.`,
+        },
+        { status: response.status },
+      );
+    }
+    return NextResponse.json(await response.json());
   } catch {
     return NextResponse.json(
       { detail: "Could not reach the Musicalyze analysis service." },

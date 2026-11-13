@@ -21,7 +21,7 @@ afterEach(() => {
 describe("changelog router", () => {
   it("getReleases reads the main branch", async () => {
     vi.mocked(fetchBranchCommits).mockResolvedValue([]);
-    const caller = createCaller({});
+    const caller = createCaller({ headers: new Headers() });
 
     await caller.changelog.getReleases();
 
@@ -30,7 +30,7 @@ describe("changelog router", () => {
 
   it("getCommits reads the development branch", async () => {
     vi.mocked(fetchBranchCommits).mockResolvedValue([]);
-    const caller = createCaller({});
+    const caller = createCaller({ headers: new Headers() });
 
     await caller.changelog.getCommits();
 

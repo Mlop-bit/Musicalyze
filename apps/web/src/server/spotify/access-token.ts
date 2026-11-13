@@ -1,21 +1,16 @@
-import { headers } from "next/headers";
-import { auth } from "@/server/auth/auth";
 import { prisma } from "@musicalyze/db";
+import { auth } from "@/server/auth/auth";
 
-export async function getSpotifyAccessToken() {
-  const requestHeaders = await headers();
-  const session = await auth.api.getSession({ headers: requestHeaders });
-  if (!session) return null;
-
+export async function getSpotifyAccessToken(headers: Headers, userId: string) {
   const account = await prisma.account.findFirst({
-    where: { userId: session.user.id, providerId: "spotify" },
+    where: { userId, providerId: "spotify" },
     select: { id: true },
   });
   if (!account) return null;
 
-  const token = await auth.api.getAccessToken({
+  const { accessToken } = await auth.api.getAccessToken({
     body: { accountId: account.id },
-    headers: requestHeaders,
+    headers,
   });
-  return token.accessToken;
+  return accessToken;
 }

@@ -4,5 +4,5 @@ import { createCallerFactory } from "./trpc";
 const createCaller = createCallerFactory(appRouter);
 
 export function createServerCaller() {
-  return createCaller({});
+  return createCaller({ headers: new Headers() });
 }
