@@ -13,6 +13,7 @@ export default defineConfig({
       BETTER_AUTH_URL: "http://127.0.0.1:3000",
       SPOTIFY_CLIENT_ID: "test-spotify-client-id",
       SPOTIFY_CLIENT_SECRET: "test-spotify-client-secret",
+      MUSICALYZE_API_KEY: "test-api-key",
     },
   },
   resolve: {
