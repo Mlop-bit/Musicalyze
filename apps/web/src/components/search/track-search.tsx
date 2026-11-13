@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { type FormEvent, useState } from "react";
 
 type TrackResult = {
   musicbrainz_id: string | null;
@@ -23,7 +23,9 @@ export function TrackSearch() {
     setError("");
     setResult(null);
     setLoading(true);
-    const isMusicBrainzId = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value);
+    const isMusicBrainzId = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(
+      value,
+    );
 
     try {
       const response = await fetch("/api/tracks/search", {
@@ -35,7 +37,11 @@ export function TrackSearch() {
       });
       const data = (await response.json()) as TrackResult | { detail?: string };
       if (!response.ok) {
-        setError("detail" in data ? data.detail ?? "Search failed." : "Search failed.");
+        setError(
+          "detail" in data
+            ? (data.detail ?? "Search failed.")
+            : "Search failed.",
+        );
       } else {
         setResult(data as TrackResult);
       }
@@ -58,21 +64,27 @@ export function TrackSearch() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Song, artist, or MusicBrainz ID"
-            className="h-12 min-w-0 flex-1 rounded-lg border border-border bg-card px-4 outline-none focus:border-signal-violet"
+            className="h-12 min-w-0 flex-1 rounded-lg border border-border bg-card px-4 outline-none focus:border-brand"
           />
           <button
             type="submit"
             disabled={loading || !search.trim()}
-            className="h-12 rounded-lg bg-signal-violet px-5 font-medium text-white disabled:opacity-50"
+            className="h-12 rounded-lg bg-brand px-5 font-medium text-white disabled:opacity-50"
           >
             {loading ? "Searching…" : "Search"}
           </button>
         </form>
 
-        {error && <p role="alert" className="mt-4 text-center text-sm text-red-700">{error}</p>}
+        {error && (
+          <p role="alert" className="mt-4 text-center text-sm text-red-700">
+            {error}
+          </p>
+        )}
         {result && (
           <div className="mt-6 rounded-lg border border-border bg-card p-5 text-sm">
-            <p>Tempo: {result.bpm ? `${Math.round(result.bpm)} BPM` : "Unknown"}</p>
+            <p>
+              Tempo: {result.bpm ? `${Math.round(result.bpm)} BPM` : "Unknown"}
+            </p>
             <p className="mt-2">Key: {result.key || "Unknown"}</p>
             <p className="mt-2">Mood: {result.mood_label || "Unknown"}</p>
           </div>
