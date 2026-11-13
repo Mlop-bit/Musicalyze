@@ -178,7 +178,9 @@ export function SpotifyHome() {
                             ))}
                           </ul>
                         )}
-                        <a href={playlist.url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-xs font-medium text-signal-violet hover:underline">Open in Spotify</a>
+                        <button type="button" disabled title="Mood ordering is not available yet" className="mt-3 inline-block cursor-not-allowed text-xs font-medium text-muted-foreground">
+                          Order by mood
+                        </button>
                       </div>
                     )}
                   </article>
