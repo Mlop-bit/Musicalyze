@@ -1,13 +1,14 @@
-import { IBM_Plex_Mono, Montserrat } from "next/font/google";
+import { Geist, Geist_Mono, Yellowtail } from "next/font/google";
 
-export const fontSans = Montserrat({
+export const fontSans = Geist({ subsets: ["latin"], variable: "--font-geist" });
+
+export const fontMono = Geist_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
-  variable: "--font-montserrat",
+  variable: "--font-geist-mono",
 });
 
-export const fontMono = IBM_Plex_Mono({
+export const fontScript = Yellowtail({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-plex-mono",
+  weight: "400",
+  variable: "--font-yellowtail",
 });
