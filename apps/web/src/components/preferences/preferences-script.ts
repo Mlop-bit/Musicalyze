@@ -1,0 +1,1 @@
+export const PREFERENCES_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("theme")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.classList.toggle("dark",d);r.dataset.glass=localStorage.getItem("glass")==="on"?"on":"off"}catch(e){}})()`;

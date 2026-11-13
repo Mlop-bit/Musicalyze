@@ -1,0 +1,70 @@
+.aurora {
+  --ribbon-1a: #8fb8f0;
+  --ribbon-1b: #7fc3e6;
+  --ribbon-2a: #8ccbaa;
+  --ribbon-2b: #a3e8d0;
+  --ribbon-3a: #7fc3e6;
+  --ribbon-3b: #8ccbaa;
+  position: absolute;
+  inset: 0;
+  opacity: var(--aurora-opacity, 0.5);
+  filter: blur(90px);
+}
+
+:global(.dark) .aurora {
+  --ribbon-1a: #2563eb;
+  --ribbon-1b: #0ea5e9;
+  --ribbon-2a: #1a8a5a;
+  --ribbon-2b: #1ed760;
+  --ribbon-3a: #0ea5e9;
+  --ribbon-3b: #1a8a5a;
+}
+
+.ribbon {
+  position: absolute;
+  left: -25%;
+  width: 150%;
+  height: 26%;
+  border-radius: 50%;
+}
+
+:global(.dark) .ribbon {
+  mix-blend-mode: screen;
+}
+
+.ribbon1 {
+  top: -2%;
+  background: linear-gradient(
+    90deg,
+    transparent 5%,
+    var(--ribbon-1a) 30%,
+    var(--ribbon-1b) 65%,
+    transparent 95%
+  );
+  transform: rotate(-14deg);
+}
+
+.ribbon2 {
+  top: 40%;
+  height: 22%;
+  background: linear-gradient(
+    90deg,
+    transparent 10%,
+    var(--ribbon-2a) 35%,
+    var(--ribbon-2b) 70%,
+    transparent 95%
+  );
+  transform: rotate(-20deg);
+}
+
+.ribbon3 {
+  top: 78%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--ribbon-3a) 25%,
+    var(--ribbon-3b) 60%,
+    transparent 90%
+  );
+  transform: rotate(-15deg);
+}
