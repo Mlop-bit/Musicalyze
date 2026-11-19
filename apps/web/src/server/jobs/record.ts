@@ -3,7 +3,7 @@ import { prisma } from "@musicalyze/db";
 type JobRecord = {
   id: string;
   userId: string;
-  kind: "reorder" | "recommend";
+  kind: "reorder" | "recommend" | "split";
   title: string;
   playlistId: string | null;
 };

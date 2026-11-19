@@ -112,3 +112,42 @@ export function appendPlaylistTracks(
 ) {
   return writeInChunks(playlistUrl, accessToken, trackIds, "POST");
 }
+
+export async function createPlaylist(
+  apiBase: string,
+  accessToken: string,
+  name: string,
+  description: string,
+  trackIds: string[],
+): Promise<{ id: string; url: string }> {
+  const response = await fetch(`${apiBase}/me/playlists`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, description, public: false }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const forbidden = response.status === 401 || response.status === 403;
+    throw new TRPCError({
+      code: forbidden ? "FORBIDDEN" : "BAD_GATEWAY",
+      message: forbidden
+        ? EDIT_DENIED
+        : `Spotify request failed with HTTP ${response.status}.`,
+    });
+  }
+  const created = (await response.json()) as {
+    id: string;
+    external_urls: { spotify: string };
+  };
+  if (trackIds.length > 0) {
+    await appendPlaylistTracks(
+      `${apiBase}/playlists/${encodeURIComponent(created.id)}`,
+      accessToken,
+      trackIds,
+    );
+  }
+  return { id: created.id, url: created.external_urls.spotify };
+}

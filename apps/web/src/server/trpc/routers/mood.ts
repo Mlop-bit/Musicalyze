@@ -6,6 +6,8 @@ import {
   jobCreatedSchema,
   jobViewSchema,
   reorderInputSchema,
+  splitInputSchema,
+  splitJobViewSchema,
 } from "@/server/ml/schema";
 import { protectedProcedure, router } from "../trpc";
 
@@ -40,4 +42,31 @@ export const moodRouter = router({
   job: protectedProcedure
     .input(z.object({ jobId: z.uuid() }))
     .query(({ input }) => callMl(`/jobs/${input.jobId}`, jobViewSchema)),
+
+  split: protectedProcedure
+    .input(splitInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const created = await callMl("/jobs/split", jobCreatedSchema, {
+        user_id: ctx.session.user.id,
+        tracks: input.tracks.map(({ trackId, title, artist, isrc }) => ({
+          track_id: trackId,
+          title,
+          artist,
+          isrc,
+        })),
+        k: input.k ?? null,
+      });
+      await recordJob({
+        id: created.job_id,
+        userId: ctx.session.user.id,
+        kind: "split",
+        title: `Split · ${input.playlistName}`,
+        playlistId: input.playlistId,
+      });
+      return { jobId: created.job_id };
+    }),
+
+  splitJob: protectedProcedure
+    .input(z.object({ jobId: z.uuid() }))
+    .query(({ input }) => callMl(`/jobs/${input.jobId}`, splitJobViewSchema)),
 });

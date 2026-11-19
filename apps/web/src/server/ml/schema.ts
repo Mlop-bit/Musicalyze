@@ -40,6 +40,21 @@ export const recommendJobViewSchema = jobBase.extend({
     .nullable(),
 });
 
+export const splitClusterSchema = z.object({
+  name: z.string(),
+  track_ids: z.array(z.string()),
+});
+
+export const splitJobViewSchema = jobBase.extend({
+  result: z
+    .looseObject({
+      clusters: z.array(splitClusterSchema),
+      k: z.number(),
+      skipped: z.array(z.string()),
+    })
+    .nullable(),
+});
+
 export const trackAnalysisSchema = z.object({
   track_id: z.string(),
   musicbrainz_id: z.string().nullable(),
@@ -79,7 +94,28 @@ export const reorderInputSchema = z.object({
   mode: reorderModeSchema.default("similarity"),
 });
 
+export const splitInputSchema = z.object({
+  tracks: z
+    .array(
+      z.object({
+        trackId: z.string().min(1),
+        title: z.string(),
+        artist: z.string(),
+        isrc: z.string().nullable(),
+      }),
+    )
+    .min(6)
+    .max(500),
+  k: z.number().int().min(2).max(8).optional(),
+  playlistId: z.string().min(1),
+  playlistName: z.string().min(1).max(200),
+});
+
 export type TrackDetail = z.infer<typeof trackDetailSchema>;
 export type TrackAnalysis = z.infer<typeof trackAnalysisSchema>;
 export type JobView = z.infer<typeof jobViewSchema>;
 export type ReorderInput = z.infer<typeof reorderInputSchema>;
+
+export type SplitCluster = z.infer<typeof splitClusterSchema>;
+export type SplitJobView = z.infer<typeof splitJobViewSchema>;
+export type SplitInput = z.infer<typeof splitInputSchema>;

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  createPlaylist,
   fetchAllPages,
   fetchPage,
   replacePlaylistTracks,
@@ -84,4 +85,22 @@ export const spotifyRouter = router({
       );
       return { saved: input.trackIds.length };
     }),
+
+    createPlaylist: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().trim().min(1).max(100),
+        description: z.string().max(300).default(""),
+        trackIds: z.array(z.string().min(1)).min(1).max(2000),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      createPlaylist(
+        API,
+        ctx.spotifyAccessToken,
+        input.name,
+        input.description,
+        input.trackIds,
+      ),
+    ),
 });

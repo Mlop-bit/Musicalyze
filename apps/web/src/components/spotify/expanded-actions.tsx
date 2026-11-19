@@ -8,12 +8,25 @@ import { OrderDecision } from "./order-decision";
 import { SimilarControls } from "./similar-controls";
 import type { MoodOrder } from "./use-mood-order";
 import type { Recommend } from "./use-recommend";
+import type { MoodSplit } from "./use-mood-split";
 
-type Props = { playlist: Playlist; mood: MoodOrder; similar: Recommend };
+type Props = {
+  playlist: Playlist;
+  mood: MoodOrder;
+  similar: Recommend;
+  split: MoodSplit;
+};
 
-export function ExpandedActions({ playlist, mood, similar }: Props) {
+export function ExpandedActions({ playlist, mood, similar, split }: Props) {
   if (similar.active) {
     return <SimilarControls playlist={playlist} similar={similar} size="sm" />;
+  }
+  if (split.isSplit) {
+    return (
+      <Button type="button" size="sm" variant="outline" onClick={split.reset}>
+        Back to playlist
+      </Button>
+    );
   }
   if (mood.isOrdered) {
     return (
@@ -25,32 +38,44 @@ export function ExpandedActions({ playlist, mood, similar }: Props) {
     );
   }
   const empty = mood.ordered.length === 0;
+  const busy = mood.running || split.running;
 
   return (
     <>
       <ModeSelect
         value={mood.mode}
         onValueChange={mood.setMode}
-        disabled={mood.running}
+        disabled={busy}
       />
       <FindSimilarButton
         size="sm"
         onClick={() => similar.run()}
-        disabled={mood.running || empty}
+        disabled={busy || empty}
       />
       <DiscoverButton
         size="sm"
         onClick={() => similar.run(undefined, undefined, "discover")}
-        disabled={mood.running || empty}
+        disabled={busy || empty}
       />
       <Tip label="Reorders the playlist by how the tracks sound. You review the result first, nothing changes on Spotify until you save.">
         <Button
           type="button"
           size="sm"
-          disabled={mood.running || mood.ordered.length < 2}
+          disabled={busy || mood.ordered.length < 2}
           onClick={mood.run}
         >
           {mood.running ? "Ordering…" : "Order by mood"}
+        </Button>
+      </Tip>
+      <Tip label="Splits the playlist into mood-based sub-playlists (requires at least 6 tracks).">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={busy || !split.canSplit}
+          onClick={split.run}
+        >
+          {split.running ? "Splitting…" : "Split by mood"}
         </Button>
       </Tip>
     </>
