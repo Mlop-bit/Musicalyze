@@ -6,7 +6,7 @@ import { ReorderDemo } from "./reorder-demo";
 const STEPS = [
   {
     title: "Connect Spotify",
-    text: "Sign in and we read your playlists and liked songs. Nothing on your account is ever changed.",
+    text: "Sign in and we read your playlists and liked songs. A playlist changes only when you press save.",
   },
   {
     title: "We listen again",
