@@ -97,7 +97,7 @@ function ClusterCard({
           >
             {track.image ? (
               <span className="relative size-8 shrink-0 overflow-hidden rounded bg-muted">
-                {track.image && <RemoteImage src={track.image} sizes="32px" />}
+                <RemoteImage src={track.image} sizes="32px" />
               </span>
             ) : (
               <div className="h-8 w-8 shrink-0 rounded bg-muted" />

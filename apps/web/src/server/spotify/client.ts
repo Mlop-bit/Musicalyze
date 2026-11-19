@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import type { z } from "zod";
+import { z } from "zod";
 
 export async function fetchPage<S extends z.ZodType>(
   url: string,
@@ -113,6 +113,11 @@ export function appendPlaylistTracks(
   return writeInChunks(playlistUrl, accessToken, trackIds, "POST");
 }
 
+const createdPlaylistSchema = z.object({
+  id: z.string(),
+  external_urls: z.object({ spotify: z.string() }),
+});
+
 export async function createPlaylist(
   apiBase: string,
   accessToken: string,
@@ -138,10 +143,7 @@ export async function createPlaylist(
         : `Spotify request failed with HTTP ${response.status}.`,
     });
   }
-  const created = (await response.json()) as {
-    id: string;
-    external_urls: { spotify: string };
-  };
+  const created = createdPlaylistSchema.parse(await response.json());
   if (trackIds.length > 0) {
     await appendPlaylistTracks(
       `${apiBase}/playlists/${encodeURIComponent(created.id)}`,
