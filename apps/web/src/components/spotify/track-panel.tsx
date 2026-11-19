@@ -5,9 +5,7 @@ import { playlistStats } from "@/lib/playlist-stats";
 import type { Playlist } from "@/server/spotify/schema";
 import { useTRPC } from "@/trpc/client";
 import { PlaylistBar } from "./playlist-bar";
-import { SimilarList } from "./similar-list";
-import { TrackError } from "./track-error";
-import { TrackRows } from "./track-rows";
+import { TracksBody } from "./tracks-body";
 import { useMoodOrder } from "./use-mood-order";
 import { useRecommend } from "./use-recommend";
 
@@ -57,24 +55,8 @@ export function TrackPanel({ playlist, adopt }: Props) {
       <div className="surface flex min-h-0 flex-col overflow-hidden rounded-3xl">
         <ListHeader />
         <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
-          {playlist === null ? null : similar.active ? (
-            <SimilarList similar={similar} />
-          ) : tracksQuery.isPending ? (
-            <p className="p-4 text-sm text-muted-foreground">Loading tracks…</p>
-          ) : tracksQuery.error ? (
-            <TrackError message={tracksQuery.error.message} />
-          ) : tracks.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">
-              This playlist is empty.
-            </p>
-          ) : (
-            <TrackRows
-              tracks={mood.ordered}
-              details={mood.details}
-              onFindSimilar={(track) =>
-                similar.run(track.id ?? undefined, track.name)
-              }
-            />
+          {playlist === null ? null : (
+            <TracksBody query={tracksQuery} mood={mood} similar={similar} />
           )}
         </div>
       </div>

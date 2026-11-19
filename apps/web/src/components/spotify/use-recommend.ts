@@ -16,13 +16,18 @@ export function useRecommend(
 
   return {
     ...useRecommendJob(start, label, jobId, () => setAdopted(undefined)),
-    run: (trackId?: string, trackName?: string) => {
+    run: (
+      trackId?: string,
+      trackName?: string,
+      source: "library" | "discover" = "library",
+    ) => {
       if (!playlist) return;
       setLabel(trackName ?? null);
       start.mutate({
         playlistId: playlist.id,
         trackId,
         title: trackName ?? playlist.name,
+        source,
         limit: 20,
       });
     },

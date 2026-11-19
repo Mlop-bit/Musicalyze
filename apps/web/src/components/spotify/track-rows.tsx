@@ -117,7 +117,7 @@ export function TrackRows({
                 href={track.url}
                 target="_blank"
                 rel="noreferrer"
-                aria-label={`Open ${track.name} on Spotify`}
+                aria-label={`Open ${track.name} on ${track.id?.startsWith("deezer:") ? "Deezer" : "Spotify"}`}
                 className="text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
               >
                 <ExternalLink className="size-3.5" />

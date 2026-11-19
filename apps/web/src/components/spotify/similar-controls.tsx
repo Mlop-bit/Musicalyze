@@ -25,7 +25,10 @@ export function SimilarControls({ playlist, similar, size = "lg" }: Props) {
       },
     }),
   );
-  const canAdd = playlist.id !== LIKED_ID && similar.tracks.length > 0;
+  const addable = similar.tracks.flatMap((track) =>
+    track.id && !track.id.startsWith("deezer:") ? [track.id] : [],
+  );
+  const canAdd = playlist.id !== LIKED_ID && addable.length > 0;
 
   return (
     <div className="flex items-center gap-2">
@@ -37,7 +40,7 @@ export function SimilarControls({ playlist, similar, size = "lg" }: Props) {
           onClick={() =>
             add.mutate({
               playlistId: playlist.id,
-              trackIds: similar.tracks.flatMap((track) => track.id ?? []),
+              trackIds: addable,
             })
           }
           className={
@@ -46,9 +49,7 @@ export function SimilarControls({ playlist, similar, size = "lg" }: Props) {
               : "font-semibold"
           }
         >
-          {add.isPending
-            ? "Adding…"
-            : `Add ${similar.tracks.length} to playlist`}
+          {add.isPending ? "Adding…" : `Add ${addable.length} to playlist`}
         </Button>
       )}
       <Button

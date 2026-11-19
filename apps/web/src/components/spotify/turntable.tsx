@@ -202,6 +202,7 @@ export function Turntable({ image, active, busy }: Props) {
     });
     scene.add(slot, fader, ...buttons);
 
+    const owned: THREE.Material[] = [];
     const arm = new THREE.Group();
     arm.position.set(2.15, 0.25, -1.35);
     const metal = new THREE.MeshStandardMaterial({
@@ -209,6 +210,7 @@ export function Turntable({ image, active, busy }: Props) {
       roughness: 0.25,
       metalness: 0.9,
     });
+    owned.push(metal);
     const base = new THREE.Mesh(
       new THREE.CylinderGeometry(0.22, 0.26, 0.3, 32),
       metal,
@@ -289,6 +291,7 @@ export function Turntable({ image, active, busy }: Props) {
           }
         }
       });
+      for (const material of owned) material.dispose();
       pmrem.dispose();
       renderer.dispose();
       renderer.forceContextLoss();

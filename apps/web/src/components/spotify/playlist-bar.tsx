@@ -3,12 +3,10 @@
 import BlurText from "@/components/react-bits/BlurText";
 import type { playlistStats } from "@/lib/playlist-stats";
 import type { Playlist } from "@/server/spotify/schema";
+import { BarControls } from "./bar-controls";
 import { BarStats } from "./bar-stats";
-import { FindSimilarButton } from "./find-similar-button";
-import { OrderControls } from "./order-controls";
 import { OrderProgress } from "./order-progress";
 import { orderStatus } from "./order-status";
-import { SimilarControls } from "./similar-controls";
 import { similarStatus } from "./similar-status";
 import { Turntable } from "./turntable";
 import type { MoodOrder } from "./use-mood-order";
@@ -69,23 +67,12 @@ export function PlaylistBar({
           </div>
           {trackCount > 0 && <BarStats stats={stats} />}
           <div className="relative flex items-center gap-2">
-            {similar.active ? (
-              <SimilarControls playlist={playlist} similar={similar} />
-            ) : (
-              <>
-                {!mood.isOrdered && (
-                  <FindSimilarButton
-                    onClick={similar.run}
-                    disabled={mood.running || trackCount === 0}
-                  />
-                )}
-                <OrderControls
-                  playlist={playlist}
-                  mood={mood}
-                  trackCount={trackCount}
-                />
-              </>
-            )}
+            <BarControls
+              playlist={playlist}
+              mood={mood}
+              similar={similar}
+              trackCount={trackCount}
+            />
           </div>
           {running && (
             <OrderProgress

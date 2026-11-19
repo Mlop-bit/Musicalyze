@@ -2,6 +2,13 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { pickCandidates } from "@/lib/candidates";
 import { toDescriptors } from "@/lib/track-descriptors";
+import {
+  artistIdByTrackQuery,
+  DEEZER_PREFIX,
+  discoverFromSeeds,
+  discoverTracks,
+  hydrateDeezerTracks,
+} from "@/server/deezer/discover";
 import { recordJob } from "@/server/jobs/record";
 import { callMl } from "@/server/ml/client";
 import { jobCreatedSchema, recommendJobViewSchema } from "@/server/ml/schema";
@@ -14,6 +21,9 @@ const API = "https://api.spotify.com/v1";
 const MAX_POOL_PLAYLISTS = 12;
 const ANALYSIS_CANDIDATE_CAP = 40;
 const ANALYSIS_ID_PREFIX = "search-";
+const DISCOVER_CAP = 60;
+
+const sourceSchema = z.enum(["library", "discover"]).default("library");
 
 async function libraryPools(token: string, excludePlaylistId: string | null) {
   const library = await fetchAllPages(
@@ -39,6 +49,7 @@ export const recommendRouter = router({
         playlistId: z.string().min(1),
         trackId: z.string().min(1).optional(),
         title: z.string().min(1).max(200),
+        source: sourceSchema,
         limit: z.number().int().min(5).max(50).default(20),
       }),
     )
@@ -54,9 +65,13 @@ export const recommendRouter = router({
           message: "That track is not in this playlist anymore.",
         });
       }
-      const pools = await libraryPools(token, input.playlistId);
-      if (input.trackId) pools.push(playlistTracks);
-      const candidates = pickCandidates(seeds, pools);
+      const candidates =
+        input.source === "discover"
+          ? await discoverFromSeeds(seeds, DISCOVER_CAP)
+          : pickCandidates(seeds, [
+              ...(await libraryPools(token, input.playlistId)),
+              ...(input.trackId ? [playlistTracks] : []),
+            ]);
       const created = await callMl("/jobs/recommend", jobCreatedSchema, {
         user_id: ctx.session.user.id,
         seeds: toDescriptors(seeds).map(descriptor),
@@ -67,7 +82,7 @@ export const recommendRouter = router({
         id: created.job_id,
         userId: ctx.session.user.id,
         kind: "recommend",
-        title: `Similar · ${input.title}`,
+        title: `${input.source === "discover" ? "Discover" : "Similar"} · ${input.title}`,
         playlistId: input.playlistId,
       });
       return {
@@ -82,12 +97,25 @@ export const recommendRouter = router({
       z.object({
         trackId: z.string().min(1),
         title: z.string().min(1).max(200),
+        source: sourceSchema,
         limit: z.number().int().min(5).max(50).default(20),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const pools = await libraryPools(ctx.spotifyAccessToken, null);
-      const candidates = pickCandidates([], pools, ANALYSIS_CANDIDATE_CAP);
+      const candidates =
+        input.source === "discover"
+          ? await discoverTracks(
+              [await artistIdByTrackQuery(input.title)].filter(
+                (id): id is number => id !== null,
+              ),
+              new Set(),
+              DISCOVER_CAP,
+            )
+          : pickCandidates(
+              [],
+              await libraryPools(ctx.spotifyAccessToken, null),
+              ANALYSIS_CANDIDATE_CAP,
+            );
       const created = await callMl("/jobs/recommend", jobCreatedSchema, {
         user_id: ctx.session.user.id,
         seeds: [{ track_id: input.trackId, title: input.title, artist: "" }],
@@ -98,7 +126,7 @@ export const recommendRouter = router({
         id: created.job_id,
         userId: ctx.session.user.id,
         kind: "recommend",
-        title: `Similar to ${input.title}`,
+        title: `${input.source === "discover" ? "Discover" : "Similar to"} ${input.title}`,
         playlistId: null,
       });
       return { jobId: created.job_id, candidates: candidates.length };
@@ -109,12 +137,17 @@ export const recommendRouter = router({
     .query(async ({ ctx, input }) => {
       const job = await callMl(`/jobs/${input.jobId}`, recommendJobViewSchema);
       const matches = job.result?.recommendations ?? [];
-      const found = await hydrateTracks(
-        ctx.spotifyAccessToken,
-        matches
-          .map((match) => match.track_id)
-          .filter((id) => !id.startsWith(ANALYSIS_ID_PREFIX)),
-      );
+      const ids = matches
+        .map((match) => match.track_id)
+        .filter((id) => !id.startsWith(ANALYSIS_ID_PREFIX));
+      const [spotify, deezer] = await Promise.all([
+        hydrateTracks(
+          ctx.spotifyAccessToken,
+          ids.filter((id) => !id.startsWith(DEEZER_PREFIX)),
+        ),
+        hydrateDeezerTracks(ids.filter((id) => id.startsWith(DEEZER_PREFIX))),
+      ]);
+      const found = [...spotify, ...deezer];
       const byId = new Map(found.map((track) => [track.id, track]));
       const tracks = matches.flatMap((match) => {
         const track = byId.get(match.track_id);
@@ -141,7 +174,18 @@ export const recommendRouter = router({
             (id) => id !== LIKED_ID,
             "Liked Songs cannot be extended here.",
           ),
-        trackIds: z.array(z.string().min(1)).min(1).max(100),
+        trackIds: z
+          .array(
+            z
+              .string()
+              .min(1)
+              .refine(
+                (id) => !id.startsWith(DEEZER_PREFIX),
+                "Deezer tracks cannot be added to Spotify.",
+              ),
+          )
+          .min(1)
+          .max(100),
       }),
     )
     .mutation(async ({ ctx, input }) => {

@@ -8,6 +8,7 @@ export function useAnalysisSimilar(trackId: string, title: string) {
 
   return {
     ...useRecommendJob(start, title, start.data?.jobId, () => undefined),
-    run: () => start.mutate({ trackId, title, limit: 20 }),
+    run: (source: "library" | "discover" = "library") =>
+      start.mutate({ trackId, title, source, limit: 20 }),
   };
 }

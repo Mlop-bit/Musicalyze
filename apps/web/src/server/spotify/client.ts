@@ -74,30 +74,41 @@ async function sendUris(
   });
 }
 
-export async function replacePlaylistTracks(
+function writeInChunks(
   playlistUrl: string,
   accessToken: string,
   trackIds: string[],
+  firstMethod: "PUT" | "POST",
 ) {
   const urls = [`${playlistUrl}/items`, `${playlistUrl}/tracks`];
-  for (let start = 0; start < trackIds.length; start += WRITE_CHUNK) {
-    const uris = trackIds
-      .slice(start, start + WRITE_CHUNK)
-      .map((id) => `spotify:track:${id}`);
-    await sendUris(urls, accessToken, start === 0 ? "PUT" : "POST", uris);
-  }
+  const chunks = Array.from(
+    { length: Math.ceil(trackIds.length / WRITE_CHUNK) },
+    (_, index) =>
+      trackIds
+        .slice(index * WRITE_CHUNK, (index + 1) * WRITE_CHUNK)
+        .map((id) => `spotify:track:${id}`),
+  );
+  return chunks.reduce(
+    (previous, uris, index) =>
+      previous.then(() =>
+        sendUris(urls, accessToken, index === 0 ? firstMethod : "POST", uris),
+      ),
+    Promise.resolve(),
+  );
 }
 
-export async function appendPlaylistTracks(
+export function replacePlaylistTracks(
   playlistUrl: string,
   accessToken: string,
   trackIds: string[],
 ) {
-  const urls = [`${playlistUrl}/items`, `${playlistUrl}/tracks`];
-  for (let start = 0; start < trackIds.length; start += WRITE_CHUNK) {
-    const uris = trackIds
-      .slice(start, start + WRITE_CHUNK)
-      .map((id) => `spotify:track:${id}`);
-    await sendUris(urls, accessToken, "POST", uris);
-  }
+  return writeInChunks(playlistUrl, accessToken, trackIds, "PUT");
+}
+
+export function appendPlaylistTracks(
+  playlistUrl: string,
+  accessToken: string,
+  trackIds: string[],
+) {
+  return writeInChunks(playlistUrl, accessToken, trackIds, "POST");
 }

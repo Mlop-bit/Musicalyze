@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
+import { DiscoverButton } from "@/components/spotify/discover-button";
 import { FindSimilarButton } from "@/components/spotify/find-similar-button";
 import { SimilarList } from "@/components/spotify/similar-list";
 import type { TrackAnalysis } from "@/server/ml/schema";
@@ -92,11 +93,18 @@ export function AnalysisResult({
               Close
             </button>
           ) : (
-            <FindSimilarButton
-              size="sm"
-              onClick={similar.run}
-              disabled={false}
-            />
+            <div className="flex gap-2">
+              <FindSimilarButton
+                size="sm"
+                onClick={() => similar.run()}
+                disabled={false}
+              />
+              <DiscoverButton
+                size="sm"
+                onClick={() => similar.run("discover")}
+                disabled={false}
+              />
+            </div>
           )}
         </div>
         {similar.active &&
