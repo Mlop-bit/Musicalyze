@@ -4,21 +4,38 @@ import BlurText from "@/components/react-bits/BlurText";
 import type { playlistStats } from "@/lib/playlist-stats";
 import type { Playlist } from "@/server/spotify/schema";
 import { BarStats } from "./bar-stats";
+import { FindSimilarButton } from "./find-similar-button";
 import { OrderControls } from "./order-controls";
 import { OrderProgress } from "./order-progress";
 import { orderStatus } from "./order-status";
+import { SimilarControls } from "./similar-controls";
+import { similarStatus } from "./similar-status";
 import { Turntable } from "./turntable";
 import type { MoodOrder } from "./use-mood-order";
+import type { Recommend } from "./use-recommend";
 
 type Props = {
   playlist: Playlist | null;
   mood: MoodOrder;
+  similar: Recommend;
   stats: ReturnType<typeof playlistStats>;
   trackCount: number;
 };
 
-export function PlaylistBar({ playlist, mood, stats, trackCount }: Props) {
-  const status = playlist ? orderStatus(playlist, mood) : null;
+export function PlaylistBar({
+  playlist,
+  mood,
+  similar,
+  stats,
+  trackCount,
+}: Props) {
+  const status = playlist
+    ? similar.active
+      ? similarStatus(similar)
+      : orderStatus(playlist, mood)
+    : null;
+  const progress = similar.active ? similar.progress : mood.progress;
+  const running = similar.active ? similar.running : mood.running;
 
   return (
     <div className="surface relative flex h-28 items-center gap-5 overflow-hidden rounded-3xl pr-4 text-foreground">
@@ -30,7 +47,7 @@ export function PlaylistBar({ playlist, mood, stats, trackCount }: Props) {
         <Turntable
           image={playlist?.image ?? null}
           active={playlist !== null}
-          busy={mood.running}
+          busy={running}
         />
       </div>
       {playlist && status ? (
@@ -51,17 +68,29 @@ export function PlaylistBar({ playlist, mood, stats, trackCount }: Props) {
             </p>
           </div>
           {trackCount > 0 && <BarStats stats={stats} />}
-          <div className="relative">
-            <OrderControls
-              playlist={playlist}
-              mood={mood}
-              trackCount={trackCount}
-            />
+          <div className="relative flex items-center gap-2">
+            {similar.active ? (
+              <SimilarControls playlist={playlist} similar={similar} />
+            ) : (
+              <>
+                {!mood.isOrdered && (
+                  <FindSimilarButton
+                    onClick={similar.run}
+                    disabled={mood.running || trackCount === 0}
+                  />
+                )}
+                <OrderControls
+                  playlist={playlist}
+                  mood={mood}
+                  trackCount={trackCount}
+                />
+              </>
+            )}
           </div>
-          {mood.running && (
+          {running && (
             <OrderProgress
-              done={mood.progress?.done ?? 0}
-              total={mood.progress?.total ?? 0}
+              done={progress?.done ?? 0}
+              total={progress?.total ?? 0}
             />
           )}
         </>

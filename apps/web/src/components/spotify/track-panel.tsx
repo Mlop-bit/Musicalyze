@@ -5,9 +5,11 @@ import { playlistStats } from "@/lib/playlist-stats";
 import type { Playlist } from "@/server/spotify/schema";
 import { useTRPC } from "@/trpc/client";
 import { PlaylistBar } from "./playlist-bar";
+import { SimilarList } from "./similar-list";
 import { TrackError } from "./track-error";
 import { TrackRows } from "./track-rows";
 import { useMoodOrder } from "./use-mood-order";
+import { useRecommend } from "./use-recommend";
 
 function ListHeader() {
   return (
@@ -30,19 +32,23 @@ export function TrackPanel({ playlist }: { playlist: Playlist | null }) {
   );
   const tracks = tracksQuery.data ?? [];
   const mood = useMoodOrder(tracks);
+  const similar = useRecommend(playlist?.id);
 
   return (
     <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
       <PlaylistBar
         playlist={playlist}
         mood={mood}
+        similar={similar}
         stats={playlistStats(tracks)}
         trackCount={tracks.length}
       />
       <div className="surface flex min-h-0 flex-col overflow-hidden rounded-3xl">
         <ListHeader />
         <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
-          {playlist === null ? null : tracksQuery.isPending ? (
+          {playlist === null ? null : similar.active ? (
+            <SimilarList similar={similar} />
+          ) : tracksQuery.isPending ? (
             <p className="p-4 text-sm text-muted-foreground">Loading tracks…</p>
           ) : tracksQuery.error ? (
             <TrackError message={tracksQuery.error.message} />
@@ -51,7 +57,13 @@ export function TrackPanel({ playlist }: { playlist: Playlist | null }) {
               This playlist is empty.
             </p>
           ) : (
-            <TrackRows tracks={mood.ordered} details={mood.details} />
+            <TrackRows
+              tracks={mood.ordered}
+              details={mood.details}
+              onFindSimilar={(track) =>
+                similar.run(track.id ?? undefined, track.name)
+              }
+            />
           )}
         </div>
       </div>

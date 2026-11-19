@@ -87,3 +87,17 @@ export async function replacePlaylistTracks(
     await sendUris(urls, accessToken, start === 0 ? "PUT" : "POST", uris);
   }
 }
+
+export async function appendPlaylistTracks(
+  playlistUrl: string,
+  accessToken: string,
+  trackIds: string[],
+) {
+  const urls = [`${playlistUrl}/items`, `${playlistUrl}/tracks`];
+  for (let start = 0; start < trackIds.length; start += WRITE_CHUNK) {
+    const uris = trackIds
+      .slice(start, start + WRITE_CHUNK)
+      .map((id) => `spotify:track:${id}`);
+    await sendUris(urls, accessToken, "POST", uris);
+  }
+}

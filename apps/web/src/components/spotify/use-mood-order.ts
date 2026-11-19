@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { sortByOrder } from "@/lib/playlist-stats";
 import type { ReorderMode } from "@/lib/reorder-modes";
+import { toDescriptors } from "@/lib/track-descriptors";
 import type { PlaylistTrack } from "@/server/spotify/schema";
 import { useTRPC } from "@/trpc/client";
 
@@ -39,19 +40,7 @@ export function useMoodOrder(tracks: PlaylistTrack[]) {
     start.error?.message ?? job.error?.message ?? job.data?.error ?? null;
 
   function run() {
-    const eligible = tracks.flatMap((track) =>
-      track.id
-        ? [
-            {
-              trackId: track.id,
-              title: track.name,
-              artist: track.primaryArtist,
-              isrc: track.isrc,
-            },
-          ]
-        : [],
-    );
-    start.mutate({ tracks: eligible, mode });
+    start.mutate({ tracks: toDescriptors(tracks), mode });
   }
 
   const details = useMemo(

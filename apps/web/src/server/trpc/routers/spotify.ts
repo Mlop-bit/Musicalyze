@@ -4,6 +4,7 @@ import {
   fetchPage,
   replacePlaylistTracks,
 } from "@/server/spotify/client";
+import { fetchPlaylistTracks } from "@/server/spotify/library";
 import {
   LIKED_ID,
   likedPageSchema,
@@ -61,40 +62,9 @@ export const spotifyRouter = router({
 
   playlistTracks: protectedProcedure
     .input(z.object({ playlistId: z.string().min(1) }))
-    .query(async ({ ctx, input }): Promise<PlaylistTrack[]> => {
-      const isLiked = input.playlistId === LIKED_ID;
-      const pages = isLiked
-        ? await fetchAllPages(
-            `${API}/me/tracks?limit=50`,
-            ctx.spotifyAccessToken,
-            likedPageSchema,
-          )
-        : await fetchAllPages(
-            `${API}/playlists/${encodeURIComponent(input.playlistId)}/items?limit=50`,
-            ctx.spotifyAccessToken,
-            trackPageSchema,
-          );
-      return pages.flatMap((page) =>
-        page.items.flatMap((entry) => {
-          const item = "track" in entry ? entry.track : entry.item;
-          return item
-            ? [
-                {
-                  id: item.id,
-                  name: item.name,
-                  artists: item.artists.map((artist) => artist.name).join(", "),
-                  primaryArtist: item.artists[0]?.name ?? "",
-                  isrc: item.external_ids?.isrc ?? null,
-                  album: item.album.name,
-                  image: item.album.images[0]?.url ?? null,
-                  url: item.external_urls.spotify,
-                  durationMs: item.duration_ms,
-                },
-              ]
-            : [];
-        }),
-      );
-    }),
+    .query(({ ctx, input }) =>
+      fetchPlaylistTracks(ctx.spotifyAccessToken, input.playlistId),
+    ),
 
   saveOrder: protectedProcedure
     .input(

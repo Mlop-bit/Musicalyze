@@ -26,7 +26,7 @@ export const playlistPageSchema = z.object({
   next: z.string().nullable(),
 });
 
-const trackItemSchema = z.object({
+export const trackItemSchema = z.object({
   id: z.string().nullable(),
   name: z.string(),
   duration_ms: z.number(),
@@ -45,6 +45,10 @@ export const likedPageSchema = z.object({
   items: z.array(z.object({ track: trackItemSchema.nullable().catch(null) })),
   next: z.string().nullable(),
   total: z.number(),
+});
+
+export const severalTracksSchema = z.object({
+  tracks: z.array(trackItemSchema.nullable().catch(null)),
 });
 
 export const LIKED_ID = "liked";
@@ -71,5 +75,6 @@ export const playlistTrackSchema = z.object({
   durationMs: z.number(),
 });
 
+export type TrackItem = z.infer<typeof trackItemSchema>;
 export type Playlist = z.infer<typeof playlistSchema>;
 export type PlaylistTrack = z.infer<typeof playlistTrackSchema>;

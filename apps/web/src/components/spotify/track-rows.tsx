@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Loader2, Pause, Play } from "lucide-react";
+import { ExternalLink, Loader2, Pause, Play, Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { RemoteImage } from "@/components/ui/remote-image";
 import { normalizeLevels } from "@/lib/mood-color";
@@ -14,6 +14,8 @@ import { usePreview } from "./preview-player";
 type Props = {
   tracks: PlaylistTrack[];
   details?: Map<string, TrackDetail>;
+  trailing?: (track: PlaylistTrack) => React.ReactNode;
+  onFindSimilar?: (track: PlaylistTrack) => void;
   compact?: boolean;
 };
 
@@ -23,7 +25,13 @@ function PlayIcon({ status }: { status: string }) {
   return <Play className="size-4 fill-current" />;
 }
 
-export function TrackRows({ tracks, details, compact = false }: Props) {
+export function TrackRows({
+  tracks,
+  details,
+  trailing,
+  onFindSimilar,
+  compact = false,
+}: Props) {
   const { statusOf, toggle } = usePreview();
   const keyed = useMemo(() => withKeys(tracks), [tracks]);
   const levels = useMemo(
@@ -94,6 +102,17 @@ export function TrackRows({ tracks, details, compact = false }: Props) {
               <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
                 {formatDuration(track.durationMs)}
               </span>
+              {onFindSimilar && (
+                <button
+                  type="button"
+                  aria-label={`Find tracks similar to ${track.name}`}
+                  title="Find similar"
+                  onClick={() => onFindSimilar(track)}
+                  className="text-muted-foreground opacity-0 transition-opacity hover:text-brand focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <Sparkles className="size-3.5" />
+                </button>
+              )}
               <a
                 href={track.url}
                 target="_blank"

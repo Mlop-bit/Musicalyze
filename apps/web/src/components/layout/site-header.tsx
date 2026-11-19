@@ -40,6 +40,9 @@ export function SiteHeader() {
         <Link href="/dashboard" className={NAV_LINK}>
           Dashboard
         </Link>
+        <Link href="/analyze" className={NAV_LINK}>
+          Analyse
+        </Link>
         <Link href="/changelog" className={NAV_LINK}>
           Changelog
         </Link>

@@ -22,9 +22,16 @@ export async function callMl<S extends z.ZodType>(
     });
   });
   if (!response.ok) {
+    const failure = (await response.json().catch(() => null)) as {
+      detail?: unknown;
+    } | null;
+    const userFacing = response.status === 404 || response.status === 422;
     throw new TRPCError({
-      code: "BAD_GATEWAY",
-      message: `The analysis service answered HTTP ${response.status}.`,
+      code: userFacing ? "NOT_FOUND" : "BAD_GATEWAY",
+      message:
+        userFacing && typeof failure?.detail === "string"
+          ? failure.detail
+          : `The analysis service answered HTTP ${response.status}.`,
     });
   }
   return schema.parse(await response.json());
