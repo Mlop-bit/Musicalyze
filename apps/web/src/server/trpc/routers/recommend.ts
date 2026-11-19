@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { pickCandidates } from "@/lib/candidates";
 import { toDescriptors } from "@/lib/track-descriptors";
+import { recordJob } from "@/server/jobs/record";
 import { callMl } from "@/server/ml/client";
 import { jobCreatedSchema, recommendJobViewSchema } from "@/server/ml/schema";
 import { appendPlaylistTracks, fetchAllPages } from "@/server/spotify/client";
@@ -37,6 +38,7 @@ export const recommendRouter = router({
       z.object({
         playlistId: z.string().min(1),
         trackId: z.string().min(1).optional(),
+        title: z.string().min(1).max(200),
         limit: z.number().int().min(5).max(50).default(20),
       }),
     )
@@ -61,6 +63,13 @@ export const recommendRouter = router({
         candidates: toDescriptors(candidates).map(descriptor),
         limit: input.limit,
       });
+      await recordJob({
+        id: created.job_id,
+        userId: ctx.session.user.id,
+        kind: "recommend",
+        title: `Similar · ${input.title}`,
+        playlistId: input.playlistId,
+      });
       return {
         jobId: created.job_id,
         seeds: seeds.length,
@@ -84,6 +93,13 @@ export const recommendRouter = router({
         seeds: [{ track_id: input.trackId, title: input.title, artist: "" }],
         candidates: toDescriptors(candidates).map(descriptor),
         limit: input.limit,
+      });
+      await recordJob({
+        id: created.job_id,
+        userId: ctx.session.user.id,
+        kind: "recommend",
+        title: `Similar to ${input.title}`,
+        playlistId: null,
       });
       return { jobId: created.job_id, candidates: candidates.length };
     }),

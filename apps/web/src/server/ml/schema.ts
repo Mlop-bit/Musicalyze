@@ -54,6 +54,13 @@ export const analyzeInputSchema = z.object({
   query: z.string().trim().min(2).max(200),
 });
 
+export const jobListSchema = z.array(
+  jobBase.extend({
+    kind: z.enum(["reorder", "split", "recommend"]),
+    created_at: z.string(),
+  }),
+);
+
 export const reorderInputSchema = z.object({
   tracks: z
     .array(
@@ -67,6 +74,8 @@ export const reorderInputSchema = z.object({
     .min(2)
     .max(500),
   startTrackId: z.string().min(1).optional(),
+  playlistId: z.string().min(1),
+  playlistName: z.string().min(1).max(200),
   mode: reorderModeSchema.default("similarity"),
 });
 

@@ -22,7 +22,11 @@ function ListHeader() {
   );
 }
 
-export function TrackPanel({ playlist }: { playlist: Playlist | null }) {
+export type AdoptedJob = { jobId: string; kind: "reorder" | "recommend" };
+
+type Props = { playlist: Playlist | null; adopt?: AdoptedJob };
+
+export function TrackPanel({ playlist, adopt }: Props) {
   const trpc = useTRPC();
   const tracksQuery = useQuery(
     trpc.spotify.playlistTracks.queryOptions(
@@ -31,8 +35,15 @@ export function TrackPanel({ playlist }: { playlist: Playlist | null }) {
     ),
   );
   const tracks = tracksQuery.data ?? [];
-  const mood = useMoodOrder(tracks);
-  const similar = useRecommend(playlist?.id);
+  const mood = useMoodOrder(
+    tracks,
+    playlist,
+    adopt?.kind === "reorder" ? adopt.jobId : undefined,
+  );
+  const similar = useRecommend(
+    playlist,
+    adopt?.kind === "recommend" ? adopt.jobId : undefined,
+  );
 
   return (
     <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">

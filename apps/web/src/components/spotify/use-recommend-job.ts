@@ -11,9 +11,13 @@ type Start = {
   reset: () => void;
 };
 
-export function useRecommendJob(start: Start, label: string | null) {
+export function useRecommendJob(
+  start: Start,
+  label: string | null,
+  jobId: string | undefined,
+  onReset: () => void,
+) {
   const trpc = useTRPC();
-  const jobId = start.data?.jobId;
   const job = useQuery(
     trpc.recommend.job.queryOptions(
       { jobId: jobId ?? "" },
@@ -43,6 +47,9 @@ export function useRecommendJob(start: Start, label: string | null) {
     error:
       start.error?.message ?? job.error?.message ?? job.data?.error ?? null,
     label,
-    reset: start.reset,
+    reset: () => {
+      start.reset();
+      onReset();
+    },
   };
 }

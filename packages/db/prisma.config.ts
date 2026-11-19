@@ -13,6 +13,10 @@ export default defineConfig({
     externalTables: true,
   },
   tables: {
-    external: ["public.track_features", "public.alembic_version"],
+    external: [
+      "public.track_features",
+      "public.alembic_version",
+      "public.jobs",
+    ],
   },
 });

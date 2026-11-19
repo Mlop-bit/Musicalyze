@@ -16,22 +16,30 @@ import { PlaylistGrid } from "./playlist-grid";
 import { PreviewProvider } from "./preview-player";
 import { TrackPanel } from "./track-panel";
 
-export function PlaylistsApp() {
+type Resume = {
+  jobId: string;
+  kind: "reorder" | "recommend";
+  playlistId: string;
+};
+
+export function PlaylistsApp({ resume }: { resume?: Resume }) {
   return (
     <PreviewProvider>
-      <PlaylistsView />
+      <PlaylistsView resume={resume} />
     </PreviewProvider>
   );
 }
 
-function PlaylistsView() {
+function PlaylistsView({ resume }: { resume?: Resume }) {
   const trpc = useTRPC();
   const { data: session } = authClient.useSession();
   const playlistsQuery = useQuery(trpc.spotify.playlists.queryOptions());
   const playlists = playlistsQuery.data ?? [];
   const filters = usePlaylistFilters(playlists, session?.user.name);
-  const [view, setView] = useState<View>("grid");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [view, setView] = useState<View>(resume ? "deck" : "grid");
+  const [selectedId, setSelectedId] = useState<string | null>(
+    resume?.playlistId ?? null,
+  );
 
   const selected =
     playlists.find((playlist) => playlist.id === selectedId) ?? null;
@@ -112,7 +120,15 @@ function PlaylistsView() {
           )}
         </div>
       </aside>
-      <TrackPanel key={selected?.id ?? "none"} playlist={selected} />
+      <TrackPanel
+        key={selected?.id ?? "none"}
+        playlist={selected}
+        adopt={
+          resume && selected?.id === resume.playlistId
+            ? { jobId: resume.jobId, kind: resume.kind }
+            : undefined
+        }
+      />
     </div>
   );
 }

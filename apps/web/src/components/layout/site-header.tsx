@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ActivityMenu } from "@/components/activity/activity-menu";
 import { SettingsMenu } from "@/components/preferences/settings-menu";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { authClient } from "@/lib/auth-client";
@@ -57,6 +58,7 @@ export function SiteHeader() {
       </nav>
       <div className="flex items-center justify-self-end gap-2">
         <AuthActions />
+        <ActivityMenu />
         <SettingsMenu />
       </div>
     </header>

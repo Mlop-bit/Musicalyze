@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { REORDER_MODES } from "@/lib/reorder-modes";
+import { recordJob } from "@/server/jobs/record";
 import { callMl } from "@/server/ml/client";
 import {
   jobCreatedSchema,
@@ -21,6 +23,16 @@ export const moodRouter = router({
         })),
         start_track_id: input.startTrackId ?? null,
         mode: input.mode,
+      });
+      const modeLabel =
+        REORDER_MODES.find((mode) => mode.value === input.mode)?.label ??
+        input.mode;
+      await recordJob({
+        id: created.job_id,
+        userId: ctx.session.user.id,
+        kind: "reorder",
+        title: `${modeLabel} · ${input.playlistName}`,
+        playlistId: input.playlistId,
       });
       return { jobId: created.job_id };
     }),

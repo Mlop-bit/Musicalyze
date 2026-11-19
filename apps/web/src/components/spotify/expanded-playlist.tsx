@@ -20,8 +20,8 @@ export function ExpandedPlaylist({ playlist }: { playlist: Playlist }) {
   const tracksQuery = useQuery(
     trpc.spotify.playlistTracks.queryOptions({ playlistId: playlist.id }),
   );
-  const mood = useMoodOrder(tracksQuery.data ?? []);
-  const similar = useRecommend(playlist.id);
+  const mood = useMoodOrder(tracksQuery.data ?? [], playlist);
+  const similar = useRecommend(playlist);
   const status = similar.active ? similarStatus(similar) : null;
 
   return (
