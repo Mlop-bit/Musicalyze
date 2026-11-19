@@ -4,18 +4,29 @@ import { ExternalLink } from "lucide-react";
 import { DiscoverButton } from "@/components/spotify/discover-button";
 import { FindSimilarButton } from "@/components/spotify/find-similar-button";
 import { SimilarList } from "@/components/spotify/similar-list";
+import { Tip } from "@/components/ui/tip";
 import type { TrackAnalysis } from "@/server/ml/schema";
 import { MoodBars } from "./mood-bars";
 import { useAnalysisSimilar } from "./use-analysis-similar";
 
-function Fact({ label, value }: { label: string; value: string }) {
+function Fact({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
   return (
-    <div className="px-5 text-center">
-      <dt className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="text-lg font-semibold tabular-nums">{value}</dd>
-    </div>
+    <Tip label={hint}>
+      <div className="px-5 text-center">
+        <dt className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+          {label}
+        </dt>
+        <dd className="text-lg font-semibold tabular-nums">{value}</dd>
+      </div>
+    </Tip>
   );
 }
 
@@ -47,10 +58,15 @@ export function AnalysisResult({
         </div>
         <dl className="flex w-fit divide-x divide-border rounded-2xl bg-foreground/[0.05] py-2 ring-1 ring-border">
           <Fact
+            hint="Beats per minute. Taken from the catalogue when known, otherwise estimated from the preview."
             label="tempo"
             value={analysis.bpm ? `${Math.round(analysis.bpm)} bpm` : "n/a"}
           />
-          <Fact label="key" value={analysis.key ?? "n/a"} />
+          <Fact
+            hint="The musical key, estimated from the preview."
+            label="key"
+            value={analysis.key ?? "n/a"}
+          />
         </dl>
         {estimated && (
           <p className="text-xs text-muted-foreground">

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { RemoteImage } from "@/components/ui/remote-image";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
+import { Tip } from "@/components/ui/tip";
 import { authClient } from "@/lib/auth-client";
 import { type Theme, usePreferences } from "./preferences-provider";
 
@@ -26,24 +27,26 @@ export function SettingsMenu() {
 
   return (
     <Popover.Root>
-      <Popover.Trigger
-        aria-label={session ? "Account and settings" : "Settings"}
-        className="press flex size-10 items-center justify-center rounded-full text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
-      >
-        {session ? (
-          session.user.image ? (
-            <span className="relative size-10 overflow-hidden rounded-full ring-2 ring-brand">
-              <RemoteImage src={session.user.image} sizes="40px" />
-            </span>
+      <Tip label="Account, theme and frosted glass." side="bottom">
+        <Popover.Trigger
+          aria-label={session ? "Account and settings" : "Settings"}
+          className="press flex size-10 items-center justify-center rounded-full text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        >
+          {session ? (
+            session.user.image ? (
+              <span className="relative size-10 overflow-hidden rounded-full ring-2 ring-brand">
+                <RemoteImage src={session.user.image} sizes="40px" />
+              </span>
+            ) : (
+              <span className="flex size-10 items-center justify-center rounded-full bg-brand font-semibold text-brand-foreground">
+                {session.user.name.slice(0, 1).toUpperCase()}
+              </span>
+            )
           ) : (
-            <span className="flex size-10 items-center justify-center rounded-full bg-brand font-semibold text-brand-foreground">
-              {session.user.name.slice(0, 1).toUpperCase()}
-            </span>
-          )
-        ) : (
-          <Settings className="size-5" />
-        )}
-      </Popover.Trigger>
+            <Settings className="size-5" />
+          )}
+        </Popover.Trigger>
+      </Tip>
       <Popover.Portal>
         <Popover.Positioner sideOffset={10} align="end" className="z-50">
           <Popover.Popup className="surface w-64 space-y-4 rounded-2xl p-4 text-sm backdrop-blur-xl">

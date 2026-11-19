@@ -24,10 +24,12 @@ export function BarControls({ playlist, mood, similar, trackCount }: Props) {
       {!mood.isOrdered && (
         <>
           <FindSimilarButton
+            iconOnly
             onClick={() => similar.run()}
             disabled={searchDisabled}
           />
           <DiscoverButton
+            iconOnly
             onClick={() => similar.run(undefined, undefined, "discover")}
             disabled={searchDisabled}
           />

@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Tip } from "@/components/ui/tip";
 import type { Playlist } from "@/server/spotify/schema";
 import { DiscoverButton } from "./discover-button";
 import { FindSimilarButton } from "./find-similar-button";
@@ -42,14 +43,16 @@ export function ExpandedActions({ playlist, mood, similar }: Props) {
         onClick={() => similar.run(undefined, undefined, "discover")}
         disabled={mood.running || empty}
       />
-      <Button
-        type="button"
-        size="sm"
-        disabled={mood.running || mood.ordered.length < 2}
-        onClick={mood.run}
-      >
-        {mood.running ? "Ordering…" : "Order by mood"}
-      </Button>
+      <Tip label="Reorders the playlist by how the tracks sound. You review the result first, nothing changes on Spotify until you save.">
+        <Button
+          type="button"
+          size="sm"
+          disabled={mood.running || mood.ordered.length < 2}
+          onClick={mood.run}
+        >
+          {mood.running ? "Ordering…" : "Order by mood"}
+        </Button>
+      </Tip>
     </>
   );
 }

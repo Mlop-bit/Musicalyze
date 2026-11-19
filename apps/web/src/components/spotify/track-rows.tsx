@@ -3,6 +3,7 @@
 import { ExternalLink, Loader2, Pause, Play, Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { RemoteImage } from "@/components/ui/remote-image";
+import { Tip } from "@/components/ui/tip";
 import { normalizeLevels } from "@/lib/mood-color";
 import { formatDuration } from "@/lib/playlist-stats";
 import { withKeys } from "@/lib/track-keys";
@@ -103,15 +104,16 @@ export function TrackRows({
                 {formatDuration(track.durationMs)}
               </span>
               {onFindSimilar && (
-                <button
-                  type="button"
-                  aria-label={`Find tracks similar to ${track.name}`}
-                  title="Find similar"
-                  onClick={() => onFindSimilar(track)}
-                  className="text-muted-foreground opacity-0 transition-opacity hover:text-brand focus-visible:opacity-100 group-hover:opacity-100"
-                >
-                  <Sparkles className="size-3.5" />
-                </button>
+                <Tip label="Find tracks that sound like this song.">
+                  <button
+                    type="button"
+                    aria-label={`Find tracks similar to ${track.name}`}
+                    onClick={() => onFindSimilar(track)}
+                    className="text-muted-foreground opacity-0 transition-opacity hover:text-brand focus-visible:opacity-100 group-hover:opacity-100"
+                  >
+                    <Sparkles className="size-3.5" />
+                  </button>
+                </Tip>
               )}
               <a
                 href={track.url}

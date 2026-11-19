@@ -4,6 +4,7 @@ import { Popover } from "@base-ui/react/popover";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Tip } from "@/components/ui/tip";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/trpc/client";
 import { type ActivityEntry, ActivityItem } from "./activity-item";
@@ -52,17 +53,22 @@ export function ActivityMenu() {
 
   return (
     <Popover.Root>
-      <Popover.Trigger
-        aria-label={running > 0 ? `${running} jobs running` : "Activity"}
-        className="press relative flex size-9 items-center justify-center rounded-full text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+      <Tip
+        label="Background jobs: orderings and searches keep running here even if you close the page."
+        side="bottom"
       >
-        <Activity className="size-5" />
-        {running > 0 && (
-          <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-brand text-[0.65rem] font-semibold text-brand-foreground">
-            {running}
-          </span>
-        )}
-      </Popover.Trigger>
+        <Popover.Trigger
+          aria-label={running > 0 ? `${running} jobs running` : "Activity"}
+          className="press relative flex size-9 items-center justify-center rounded-full text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        >
+          <Activity className="size-5" />
+          {running > 0 && (
+            <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-brand text-[0.65rem] font-semibold text-brand-foreground">
+              {running}
+            </span>
+          )}
+        </Popover.Trigger>
+      </Tip>
       <Popover.Portal>
         <Popover.Positioner sideOffset={10} align="end" className="z-50">
           <Popover.Popup className="surface w-80 rounded-2xl p-2 text-sm backdrop-blur-xl">

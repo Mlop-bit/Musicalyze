@@ -50,7 +50,7 @@ export function PlaylistBar({
       </div>
       {playlist && status ? (
         <>
-          <div className="relative min-w-0 flex-1">
+          <div className="relative min-w-40 flex-1">
             <h2 className="truncate font-script text-4xl leading-[1.1] tracking-wide">
               <BlurText
                 key={playlist.id}

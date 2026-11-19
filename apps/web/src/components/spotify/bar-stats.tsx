@@ -22,7 +22,7 @@ function Stat({
 
 export function BarStats({ stats }: { stats: Stats }) {
   return (
-    <dl className="relative hidden divide-x divide-border rounded-2xl bg-foreground/[0.05] py-1.5 ring-1 ring-border lg:flex">
+    <dl className="relative hidden divide-x divide-border rounded-2xl bg-foreground/[0.05] py-1.5 ring-1 ring-border 2xl:flex">
       <Stat label="tracks">
         <CountUp to={stats.count} duration={1.2} />
       </Stat>
