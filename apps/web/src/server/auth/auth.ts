@@ -8,6 +8,9 @@ import { spotifyProfileSchema } from "@/server/spotify/schema";
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
+  account: {
+    accountLinking: { enabled: true, trustedProviders: ["spotify"] },
+  },
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
