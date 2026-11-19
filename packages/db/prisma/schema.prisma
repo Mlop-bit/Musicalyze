@@ -55,7 +55,7 @@ model Account {
   createdAt             DateTime
   updatedAt             DateTime
 
-  issuer String
+  issuer String?
 
   @@map("account")
   @@unique([issuer, accountId], map: "account_issuer_accountId_uidx")

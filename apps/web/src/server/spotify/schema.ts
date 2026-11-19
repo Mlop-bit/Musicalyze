@@ -7,7 +7,7 @@ export const spotifyProfileSchema = z.object({
   account_id: z.string().optional(),
   display_name: z.string().nullish(),
   email: z.string().nullish(),
-  images: z.array(imageSchema).default([]),
+  images: z.array(imageSchema).nullish().transform((v) => v ?? []),
 });
 
 export const playlistPageSchema = z.object({
@@ -16,7 +16,7 @@ export const playlistPageSchema = z.object({
       id: z.string(),
       name: z.string(),
       description: z.string().nullable(),
-      images: z.array(imageSchema),
+      images: z.array(imageSchema).nullish().transform((v) => v ?? []),
       external_urls: z.object({ spotify: z.string() }),
       owner: z.object({ display_name: z.string().nullable() }),
       items: z.object({ total: z.number() }).optional(),
@@ -31,7 +31,7 @@ export const trackItemSchema = z.object({
   name: z.string(),
   duration_ms: z.number(),
   artists: z.array(z.object({ name: z.string() })),
-  album: z.object({ name: z.string(), images: z.array(imageSchema) }),
+  album: z.object({ name: z.string(), images: z.array(imageSchema).nullish().transform((v) => v ?? []) }),
   external_urls: z.object({ spotify: z.string() }),
   external_ids: z.object({ isrc: z.string().optional() }).optional(),
 });
