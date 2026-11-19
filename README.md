@@ -35,7 +35,7 @@ This project proposes a Spotify-integrated web application that independently re
 ## Installation
 To install this project, simply clone the repository using the following command:
 ```
-git clone https://github.com/Mlop-bit/AIProject.git
+git clone https://github.com/Mlop-bit/Musicalyze.git
 ```
 
 ## Project initialisation
@@ -107,4 +107,4 @@ curl localhost:8000/jobs/<job_id> -H "X-API-Key: $MUSICALYZE_API_KEY"
 Omit `k` to let the system choose the number of playlists. The web backend supplies the candidate tracks for `recommend`; at most `MUSICALYZE_MAX_NEW_CANDIDATES` of them that are not yet in the feature store are resolved per request.
 
 ## Releases and CI
-Every push runs the Python checks (ruff, pyright, pytest) and a Docker build of the ML service, and the web checks (Biome, `tsc`, Vitest). A merge to `main` publishes the ML image to `ghcr.io/mlop-bit/aiproject/ml`, tagged `latest` and with the commit SHA; a `vX.Y.Z` tag also publishes the semantic version tags. The image runs as a non-root user and starts `uvicorn` on port 8000. The first release is `v0.1.0`.
+Every push runs the Python checks (ruff, pyright, pytest) and a Docker build of the ML service, and the web checks (Biome, `tsc`, Vitest). A merge to `main` publishes the ML image to `ghcr.io/mlop-bit/musicalyze/ml`, tagged `latest` and with the commit SHA; a `vX.Y.Z` tag also publishes the semantic version tags. The image runs as a non-root user and starts `uvicorn` on port 8000. The first stable release is `v1.0.0`.
