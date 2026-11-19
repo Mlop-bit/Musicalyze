@@ -44,8 +44,8 @@ def save_enrichment(
         .where(TrackFeatures.track_id == track_id)
         .values(
             musicbrainz_id=musicbrainz_id,
-            bpm=bpm,
-            key=key,
+            bpm=func.coalesce(literal(bpm), TrackFeatures.bpm),
+            key=func.coalesce(literal(key), TrackFeatures.key),
             chords_changes_rate=chords_changes_rate,
             danceability=danceability,
             average_loudness=average_loudness,
@@ -54,6 +54,20 @@ def save_enrichment(
             mood_scores=mood_scores,
             mood_label=mood_label,
             source=source,
+        )
+    )
+    session.execute(statement)
+
+
+def save_audio_estimates(
+    session: Session, track_id: str, bpm: float | None, key: str | None
+) -> None:
+    statement = (
+        update(TrackFeatures)
+        .where(TrackFeatures.track_id == track_id)
+        .values(
+            bpm=func.coalesce(TrackFeatures.bpm, literal(bpm)),
+            key=func.coalesce(TrackFeatures.key, literal(key)),
         )
     )
     session.execute(statement)

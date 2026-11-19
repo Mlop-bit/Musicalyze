@@ -1,5 +1,5 @@
-import os
 import tempfile
+from pathlib import Path
 
 import httpx
 import librosa
@@ -15,12 +15,11 @@ def fetch_waveform(preview_url: str) -> torch.Tensor:
 
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as preview_file:
         preview_file.write(response.content)
-        temp_path = preview_file.name
+    preview_path = Path(preview_file.name)
 
     try:
-        samples, _ = librosa.load(temp_path, sr=TARGET_SAMPLE_RATE, mono=True)
+        samples, _ = librosa.load(str(preview_path), sr=TARGET_SAMPLE_RATE, mono=True)
     finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        preview_path.unlink(missing_ok=True)
 
     return torch.from_numpy(samples).unsqueeze(0)

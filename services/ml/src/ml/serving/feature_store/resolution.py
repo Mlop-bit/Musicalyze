@@ -32,6 +32,7 @@ def resolve_track(
                 track_id,
                 deezer_track["preview_url"],
                 duration_sec=deezer_track["duration_sec"],
+                bpm=deezer_track["bpm"],
             )
     except Exception:
         logger.warning(

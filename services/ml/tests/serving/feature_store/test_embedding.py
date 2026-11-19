@@ -6,6 +6,7 @@ from ml.serving.feature_store.embedding import (
     save_track_embedding,
     save_track_embedding_from_preview,
 )
+from ml.serving.preview.audio_features import AudioEstimate
 
 
 def test_save_track_embedding_saves_the_mean_pooled_embedding_as_a_list() -> None:
@@ -20,6 +21,11 @@ def test_save_track_embedding_saves_the_mean_pooled_embedding_as_a_list() -> Non
             "ml.serving.feature_store.embedding.embed", return_value=fake_embedding
         ) as mock_embed,
         patch("ml.serving.feature_store.embedding.save_embedding") as mock_save_embedding,
+        patch(
+            "ml.serving.feature_store.embedding.estimate_tempo_and_key",
+            return_value=AudioEstimate(bpm=None, key=None),
+        ),
+        patch("ml.serving.feature_store.embedding.save_audio_estimates"),
     ):
         save_track_embedding(fake_session, "track-1", waveform, duration_sec=245)
 
@@ -42,10 +48,10 @@ def test_save_track_embedding_from_preview_fetches_then_saves_the_waveform() -> 
         ) as mock_save_track_embedding,
     ):
         save_track_embedding_from_preview(
-            fake_session, "track-1", "https://example.com/preview.mp3", duration_sec=245
+            fake_session, "track-1", "https://example.com/preview.mp3", duration_sec=245, bpm=None
         )
 
     mock_fetch_waveform.assert_called_once_with("https://example.com/preview.mp3")
     mock_save_track_embedding.assert_called_once_with(
-        fake_session, "track-1", fake_waveform, duration_sec=245
+        fake_session, "track-1", fake_waveform, duration_sec=245, bpm=None
     )
