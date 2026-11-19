@@ -7,8 +7,8 @@ import { ModeSelect } from "./mode-select";
 import { OrderDecision } from "./order-decision";
 import { SimilarControls } from "./similar-controls";
 import type { MoodOrder } from "./use-mood-order";
-import type { Recommend } from "./use-recommend";
 import type { MoodSplit } from "./use-mood-split";
+import type { Recommend } from "./use-recommend";
 
 type Props = {
   playlist: Playlist;
