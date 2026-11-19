@@ -23,8 +23,14 @@ export function ExpandedActions({ playlist, mood, similar, split }: Props) {
   }
   if (split.isSplit) {
     return (
-      <Button type="button" size="sm" variant="outline" onClick={split.reset}>
-        Back to playlist
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-8 rounded-lg"
+        onClick={split.reset}
+      >
+        ← Back to playlist
       </Button>
     );
   }
@@ -41,43 +47,50 @@ export function ExpandedActions({ playlist, mood, similar, split }: Props) {
   const busy = mood.running || split.running;
 
   return (
-    <>
-      <ModeSelect
-        value={mood.mode}
-        onValueChange={mood.setMode}
-        disabled={busy}
-      />
-      <FindSimilarButton
-        size="sm"
-        onClick={() => similar.run()}
-        disabled={busy || empty}
-      />
-      <DiscoverButton
-        size="sm"
-        onClick={() => similar.run(undefined, undefined, "discover")}
-        disabled={busy || empty}
-      />
-      <Tip label="Reorders the playlist by how the tracks sound. You review the result first, nothing changes on Spotify until you save.">
-        <Button
-          type="button"
+    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <ModeSelect
+          value={mood.mode}
+          onValueChange={mood.setMode}
+          disabled={busy}
+        />
+        <Tip label="Reorders the playlist by how the tracks sound. You review the result first, nothing changes on Spotify until you save.">
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 rounded-lg font-medium"
+            disabled={busy || mood.ordered.length < 2}
+            onClick={mood.run}
+          >
+            {mood.running ? "Ordering…" : "Order by mood"}
+          </Button>
+        </Tip>
+        <Tip label="Splits the playlist into mood-based sub-playlists (requires at least 6 tracks).">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 rounded-lg hover:bg-accent/60"
+            disabled={busy || !split.canSplit}
+            onClick={split.run}
+          >
+            {split.running ? "Splitting…" : "Split by mood"}
+          </Button>
+        </Tip>
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <FindSimilarButton
           size="sm"
-          disabled={busy || mood.ordered.length < 2}
-          onClick={mood.run}
-        >
-          {mood.running ? "Ordering…" : "Order by mood"}
-        </Button>
-      </Tip>
-      <Tip label="Splits the playlist into mood-based sub-playlists (requires at least 6 tracks).">
-        <Button
-          type="button"
+          onClick={() => similar.run()}
+          disabled={busy || empty}
+        />
+        <DiscoverButton
           size="sm"
-          variant="secondary"
-          disabled={busy || !split.canSplit}
-          onClick={split.run}
-        >
-          {split.running ? "Splitting…" : "Split by mood"}
-        </Button>
-      </Tip>
-    </>
+          onClick={() => similar.run(undefined, undefined, "discover")}
+          disabled={busy || empty}
+        />
+      </div>
+    </div>
   );
 }

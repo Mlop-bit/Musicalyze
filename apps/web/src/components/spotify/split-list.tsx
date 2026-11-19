@@ -3,24 +3,35 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { RemoteImage } from "@/components/ui/remote-image";
 import { useTRPC } from "@/trpc/client";
 import type { MoodSplit, ResolvedCluster } from "./use-mood-split";
+
+function formatDuration(ms: number) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
 
 function ClusterCard({
   cluster,
   playlistName,
+  savedUrl,
+  onSaved,
 }: {
   cluster: ResolvedCluster;
   playlistName: string;
+  savedUrl: string | undefined;
+  onSaved: (url: string) => void;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [savedUrl, setSavedUrl] = useState<string | null>(null);
 
   const create = useMutation(
     trpc.spotify.createPlaylist.mutationOptions({
       onSuccess: async (data) => {
-        setSavedUrl(data.url);
+        onSaved(data.url);
         await queryClient.invalidateQueries(
           trpc.spotify.playlists.queryFilter(),
         );
@@ -31,28 +42,33 @@ function ClusterCard({
   const trackIds = cluster.tracks.flatMap((t) => t.id ?? []);
 
   return (
-    <div className="rounded-md border border-border p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div>
-          <h4 className="text-sm font-medium capitalize">{cluster.name}</h4>
-          <span className="text-xs text-muted-foreground">
-            {cluster.tracks.length} tracks
+    <div className="rounded-xl border border-border/80 bg-background/40 p-3">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h4 className="truncate text-sm font-semibold capitalize">
+            {cluster.name}
+          </h4>
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            {cluster.tracks.length}{" "}
+            {cluster.tracks.length === 1 ? "track" : "tracks"}
           </span>
         </div>
+
         {savedUrl ? (
           <a
             href={savedUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-xs font-medium text-primary underline"
+            className="inline-flex h-7 shrink-0 items-center rounded-md border border-primary/30 bg-primary/10 px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
           >
-            Open in Spotify
+            Open in Spotify ↗
           </a>
         ) : (
           <Button
             type="button"
             size="sm"
             variant="outline"
+            className="h-7 shrink-0 rounded-md px-2.5 text-xs"
             disabled={create.isPending || trackIds.length === 0}
             onClick={() =>
               create.mutate({
@@ -73,15 +89,29 @@ function ClusterCard({
         </p>
       )}
 
-      <ul className="space-y-1 text-xs">
+      <ul className="divide-y divide-border/50">
         {cluster.tracks.map((track, index) => (
           <li
             key={track.id ?? `${track.name}-${index}`}
-            className="flex items-center justify-between gap-2 truncate"
+            className="flex items-center gap-2.5 py-1.5 first:pt-0 last:pb-0"
           >
-            <span className="truncate font-medium">{track.name}</span>
-            <span className="shrink-0 text-muted-foreground">
-              {track.artists}
+            {track.image ? (
+              <span className="relative size-8 shrink-0 overflow-hidden rounded bg-muted">
+                {track.image && <RemoteImage src={track.image} sizes="32px" />}
+              </span>
+            ) : (
+              <div className="h-8 w-8 shrink-0 rounded bg-muted" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-medium leading-tight">
+                {track.name}
+              </p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {track.artists}
+              </p>
+            </div>
+            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+              {formatDuration(track.durationMs)}
             </span>
           </li>
         ))}
@@ -97,6 +127,16 @@ export function SplitList({
   split: MoodSplit;
   playlistName: string;
 }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [savedUrls, setSavedUrls] = useState<Record<string, string>>({});
+  const [savingAll, setSavingAll] = useState(false);
+  const [saveAllError, setSaveAllError] = useState<string | null>(null);
+
+  const createBatch = useMutation(
+    trpc.spotify.createPlaylist.mutationOptions(),
+  );
+
   if (!split.clusters || split.clusters.length === 0) {
     return (
       <p className="p-4 text-sm text-muted-foreground">
@@ -105,17 +145,76 @@ export function SplitList({
     );
   }
 
+  const unsavedClusters = split.clusters.filter((c) => !savedUrls[c.name]);
+
+  async function handleSaveAll() {
+    setSavingAll(true);
+    setSaveAllError(null);
+    try {
+      for (const cluster of unsavedClusters) {
+        const trackIds = cluster.tracks.flatMap((t) => t.id ?? []);
+        if (trackIds.length === 0) continue;
+        const res = await createBatch.mutateAsync({
+          name: `${playlistName} · ${cluster.name}`,
+          description: `Mood cluster "${cluster.name}" generated by Musicalyze.`,
+          trackIds,
+        });
+        setSavedUrls((prev) => ({ ...prev, [cluster.name]: res.url }));
+      }
+      await queryClient.invalidateQueries(trpc.spotify.playlists.queryFilter());
+    } catch (err) {
+      setSaveAllError(
+        err instanceof Error ? err.message : "Failed to save all playlists.",
+      );
+    } finally {
+      setSavingAll(false);
+    }
+  }
+
   return (
-    <div className="space-y-4 py-2">
+    <div className="space-y-3 py-1">
+      {split.clusters.length > 1 && (
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          <span className="text-xs text-muted-foreground">
+            {split.clusters.length} mood clusters found
+          </span>
+          {unsavedClusters.length > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 rounded-md px-2.5 text-xs hover:bg-accent/60"
+              disabled={savingAll}
+              onClick={handleSaveAll}
+            >
+              {savingAll
+                ? "Saving all…"
+                : `Save all (${unsavedClusters.length})`}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {saveAllError && (
+        <p role="alert" className="text-xs text-destructive">
+          {saveAllError}
+        </p>
+      )}
+
       {split.clusters.map((cluster) => (
         <ClusterCard
           key={cluster.name}
           cluster={cluster}
           playlistName={playlistName}
+          savedUrl={savedUrls[cluster.name]}
+          onSaved={(url) =>
+            setSavedUrls((prev) => ({ ...prev, [cluster.name]: url }))
+          }
         />
       ))}
+
       {split.skipped > 0 && (
-        <p className="text-xs text-muted-foreground">
+        <p className="px-0.5 text-xs text-muted-foreground">
           {split.skipped} track{split.skipped === 1 ? "" : "s"} skipped (no
           audio preview available).
         </p>
