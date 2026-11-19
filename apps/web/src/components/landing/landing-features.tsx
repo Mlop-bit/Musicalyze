@@ -2,22 +2,26 @@
 
 import { ArrowUpRight } from "lucide-react";
 import { m } from "motion/react";
+import Link from "next/link";
 
 const FEATURES = [
   {
     title: "Order by mood",
     text: "Neighbouring tracks sound alike, optionally weighted by tempo and key.",
+    href: "/dashboard",
     ready: true,
   },
   {
     title: "Split into moods",
     text: "Long playlists become coherent sub-playlists, each named after its dominant mood.",
-    ready: false,
+    href: "/dashboard",
+    ready: true,
   },
   {
     title: "Recommend by sound",
     text: "Tracks and artists that sit close to your seeds in embedding space.",
-    ready: false,
+    href: "/dashboard",
+    ready: true,
   },
 ];
 
@@ -44,10 +48,19 @@ export function LandingFeatures() {
                 delay: index * 0.1,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="group grid items-center gap-2 rounded-3xl border border-transparent px-6 py-7 transition-[transform,border-color,background-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-brand/40 hover:bg-brand/[0.07] hover:shadow-lg hover:shadow-brand/10 md:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] md:gap-12"
+              className="group relative grid items-center gap-2 rounded-3xl border border-transparent px-6 py-7 transition-[transform,border-color,background-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-brand/40 hover:bg-brand/[0.07] hover:shadow-lg hover:shadow-brand/10 md:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] md:gap-12"
             >
               <h3 className="text-3xl font-semibold tracking-tight transition-colors duration-300 group-hover:text-brand sm:text-5xl">
-                {feature.title}
+                {feature.ready ? (
+                  <Link
+                    href={feature.href}
+                    className="static before:absolute before:inset-0"
+                  >
+                    {feature.title}
+                  </Link>
+                ) : (
+                  feature.title
+                )}
               </h3>
               <div className="space-y-3">
                 <p className="text-muted-foreground">{feature.text}</p>
