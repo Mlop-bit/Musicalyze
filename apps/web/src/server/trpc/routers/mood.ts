@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { REORDER_MODES } from "@/lib/reorder-modes";
-import { recordJob } from "@/server/jobs/record";
+import { assertJobOwner, recordJob } from "@/server/jobs/record";
 import { callMl } from "@/server/ml/client";
 import {
   jobCreatedSchema,
@@ -41,7 +41,10 @@ export const moodRouter = router({
 
   job: protectedProcedure
     .input(z.object({ jobId: z.uuid() }))
-    .query(({ input }) => callMl(`/jobs/${input.jobId}`, jobViewSchema)),
+    .query(async ({ ctx, input }) => {
+      await assertJobOwner(ctx.session.user.id, input.jobId);
+      return callMl(`/jobs/${input.jobId}`, jobViewSchema);
+    }),
 
   split: protectedProcedure
     .input(splitInputSchema)
@@ -68,5 +71,8 @@ export const moodRouter = router({
 
   splitJob: protectedProcedure
     .input(z.object({ jobId: z.uuid() }))
-    .query(({ input }) => callMl(`/jobs/${input.jobId}`, splitJobViewSchema)),
+    .query(async ({ ctx, input }) => {
+      await assertJobOwner(ctx.session.user.id, input.jobId);
+      return callMl(`/jobs/${input.jobId}`, splitJobViewSchema);
+    }),
 });

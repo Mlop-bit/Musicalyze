@@ -9,7 +9,7 @@ import {
   discoverTracks,
   hydrateDeezerTracks,
 } from "@/server/deezer/discover";
-import { recordJob } from "@/server/jobs/record";
+import { assertJobOwner, recordJob } from "@/server/jobs/record";
 import { callMl } from "@/server/ml/client";
 import { jobCreatedSchema, recommendJobViewSchema } from "@/server/ml/schema";
 import { appendPlaylistTracks, fetchAllPages } from "@/server/spotify/client";
@@ -135,6 +135,7 @@ export const recommendRouter = router({
   job: protectedProcedure
     .input(z.object({ jobId: z.uuid() }))
     .query(async ({ ctx, input }) => {
+      await assertJobOwner(ctx.session.user.id, input.jobId);
       const job = await callMl(`/jobs/${input.jobId}`, recommendJobViewSchema);
       const matches = job.result?.recommendations ?? [];
       const ids = matches
