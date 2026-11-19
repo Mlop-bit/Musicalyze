@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 import random
 import shutil
@@ -18,7 +20,6 @@ import zstandard as zstd
 from boto3.exceptions import S3UploadFailedError
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
-from mypy_boto3_s3.client import S3Client
 
 from ml.core.artifact_store import s3_client
 from ml.core.config import Settings
@@ -37,6 +38,9 @@ from ml.serving.acousticbrainz.s3_shards import (
     repack_archive_stream,
     shard_prefix,
 )
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
 
 DONE_MARKER_PREFIX = f"{S3_PREFIX}/.done/"
 NOT_FOUND_ERROR_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
@@ -108,7 +112,7 @@ class _IterReader(io.RawIOBase):
     def readable(self) -> bool:
         return True
 
-    def readinto(self, b: "WriteableBuffer") -> int:
+    def readinto(self, b: WriteableBuffer) -> int:
         output = memoryview(b)  # type: ignore[arg-type]
         while len(self._buffer) < len(output):
             try:

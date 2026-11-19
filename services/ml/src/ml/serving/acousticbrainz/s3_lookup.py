@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import shutil
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 from botocore.exceptions import ClientError
-from mypy_boto3_s3.client import S3Client
 
 from ml.serving.acousticbrainz.find_song_acousticbrainz import (
     HIGHLEVEL_DIR_NAME,
@@ -16,6 +18,9 @@ from ml.serving.acousticbrainz.find_song_acousticbrainz import (
     get_acousticbrainz_data,
 )
 from ml.serving.acousticbrainz.s3_shards import shard_prefix, unpack_shard
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
 
 DEFAULT_MAX_CACHED_SHARDS = 16
 DEFAULT_RETRY_ATTEMPTS = 3

@@ -18,7 +18,6 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "pydantic-settings>=2.6",
-    "tensorboard>=2.18",
     "boto3>=1.35",
     "botocore>=1.35",
     "httpx>=0.27",
@@ -27,10 +26,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cpu = ["torch>=2.5"]
-cu130 = ["torch>=2.5"]
+cpu = ["torch>=2.5", "torchaudio", "torchvision"]
+cu130 = ["torch>=2.5", "torchaudio", "torchvision"]
 
 [dependency-groups]
+training = ["tensorboard>=2.18"]
 dev = [
     "ruff>=0.7",
     "pyright>=1.1",
@@ -40,6 +40,7 @@ dev = [
 ]
 
 [tool.uv]
+default-groups = ["dev", "training"]
 conflicts = [
     [
         { extra = "cpu" },
@@ -49,6 +50,16 @@ conflicts = [
 
 [tool.uv.sources]
 torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu130", extra = "cu130" },
+]
+
+torchaudio = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu130", extra = "cu130" },
+]
+
+torchvision = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-cu130", extra = "cu130" },
 ]

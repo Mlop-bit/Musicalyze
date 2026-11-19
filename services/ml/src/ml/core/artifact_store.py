@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import boto3
 from botocore.config import Config
-from mypy_boto3_s3.client import S3Client
 
 from ml.core.config import Settings
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
 
 
 def s3_client(settings: Settings) -> S3Client:
