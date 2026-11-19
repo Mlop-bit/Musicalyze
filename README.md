@@ -14,9 +14,17 @@ This project proposes a Spotify-integrated web application that independently re
 - Train and evaluate a custom mood and genre classifier using these reconstructed acoustic representations.
 - Develop a web application that applies the classification outputs to automate playlist segmentation, track sequencing, and music recommendation.
 
+## Features
+- **Order by mood**: reorders a playlist so that neighbouring tracks sound alike (by similarity, calm to energetic or energetic to calm). The result is previewed first and written to Spotify only when the user saves it.
+- **Split by mood**: divides a playlist of at least six tracks into mood-named sub-playlists, each of which can be saved to Spotify on its own or all at once.
+- **Find similar** and **Discover**: recommends tracks from the user's library, or from outside it through Deezer, ranked by the nearest seed in embedding space.
+- **Song analysis**: searches any song and shows its tempo, key and mood scores with similar tracks from the library.
+- **Background jobs**: every operation runs as a job that survives a page reload and is listed in the activity menu.
+- **Changelog** built from the repository history, and theme and frosted-glass preferences.
+
 ## Specification
 - Has to run on any recent browser.
-- ?
+- Heavy work (audio decoding, MuQ inference) never runs in the request path of the web app.
 
 ## Prerequisites
 - Python 3.13 with [`uv`](https://docs.astral.sh/uv/) and [`just`](https://just.systems/)
@@ -27,7 +35,7 @@ This project proposes a Spotify-integrated web application that independently re
 ## Installation
 To install this project, simply clone the repository using the following command:
 ```
-https://github.com/Mlop-bit/AIProject.git
+git clone https://github.com/Mlop-bit/AIProject.git
 ```
 
 ## Project initialisation
@@ -65,11 +73,11 @@ https://github.com/Mlop-bit/AIProject.git
 | `SPOTIFY_CLIENT_SECRET` | Client Secret from your Spotify Developer app. |
 | `DATABASE_URL` | PostgreSQL URL used by the web app, for example `postgresql://postgres:postgres@localhost:5432/musicalyze`. |
 
-In the Spotify Developer Dashboard, register this exact redirect URI for local development: `http://127.0.0.1:3000/api/auth/callback/spotify`. Open the site at `http://127.0.0.1:3000` during sign-in so the redirect host matches. The app requests read access to private and collaborative playlists.
+In the Spotify Developer Dashboard, register this exact redirect URI for local development: `http://127.0.0.1:3000/api/auth/callback/spotify`. Open the site at `http://127.0.0.1:3000` during sign-in so the redirect host matches. The app requests read access to private and collaborative playlists and to liked songs, and write access to playlists, which is used only when the user saves an order, adds tracks or exports a split.
 
 Spotify apps in Development Mode have access restrictions. The account owner must have Premium, and Spotify currently limits the app to five allowlisted users. Add test users in the app's User Management settings if they receive a `403` response.
 
-This integration only displays playlists and track details, with links back to Spotify. Spotify's current API terms prohibit ingesting Spotify content into AI/ML models, so this page does not send Spotify tracks to the Musicalyze ML service.
+The web backend sends only track identifiers, titles, artists and ISRCs to the Musicalyze ML service. The audio always comes from Deezer previews, never from Spotify. Check Spotify's current developer terms on the use of Spotify content with ML models before opening the app to other users.
 
 ## Project launch
 ```
@@ -80,7 +88,7 @@ just check      # ruff, pyright and pytest
 ```
 The ML service itself can also run as a container with `docker compose --env-file services/ml/.env --profile ml up`. The end-to-end demo, run from `services/ml` with `uv run python scripts/demo_resolve_track.py [track_id artist title musicbrainz_id]`, resolves a track through Deezer, MusicBrainz, AcousticBrainz and the trained classifier. The classifier is trained with `services/ml/scripts/run_training.py <dataset directory>`.
 
-The web home page lets a user sign in with Spotify and browse their playlists and tracks. Start PostgreSQL, apply the Prisma Better Auth migration with `corepack pnpm --filter @musicalyze/db exec prisma migrate deploy`, then run the web app from the repository root with `corepack pnpm --filter web dev` and open `http://127.0.0.1:3000`.
+The web app lets a user sign in with Spotify, browse their playlists, and order, split, analyse and find similar tracks through the jobs below. Start PostgreSQL, apply the Prisma Better Auth migration with `corepack pnpm --filter @musicalyze/db exec prisma migrate deploy`, start the ML API and the worker (see Jobs), then run the web app from the repository root with `corepack pnpm --filter web dev` and open `http://127.0.0.1:3000`.
 
 ### Jobs
 
@@ -97,3 +105,6 @@ curl localhost:8000/jobs/<job_id> -H "X-API-Key: $MUSICALYZE_API_KEY"
 ```
 
 Omit `k` to let the system choose the number of playlists. The web backend supplies the candidate tracks for `recommend`; at most `MUSICALYZE_MAX_NEW_CANDIDATES` of them that are not yet in the feature store are resolved per request.
+
+## Releases and CI
+Every push runs the Python checks (ruff, pyright, pytest) and a Docker build of the ML service, and the web checks (Biome, `tsc`, Vitest). A merge to `main` publishes the ML image to `ghcr.io/mlop-bit/aiproject/ml`, tagged `latest` and with the commit SHA; a `vX.Y.Z` tag also publishes the semantic version tags. The image runs as a non-root user and starts `uvicorn` on port 8000. The first release is `v0.1.0`.
